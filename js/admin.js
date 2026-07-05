@@ -1,188 +1,155 @@
 import { getFirebase, isConfigured } from "./firebase-init.js";
+import { DEFAULT_TARIFF, DEFAULT_EFFECTIVE, DEFAULT_VAT, RATE_LABELS, applyOverrides } from "./dpdc-tariff.js";
 
 const main = document.getElementById("admin-main");
 const checking = document.getElementById("auth-checking");
-const listEl = document.getElementById("admin-tool-list");
-const formErr = document.getElementById("tool-form-error");
-const saveBtn = document.getElementById("save-tool-btn");
-const cancelBtn = document.getElementById("cancel-edit-btn");
+const editorEl = document.getElementById("tariff-editor");
+const effInput = document.getElementById("tf-effective");
+const vatInput = document.getElementById("tf-vat");
+const errEl = document.getElementById("tariff-error");
+const saveBtn = document.getElementById("save-tariff-btn");
+const resetBtn = document.getElementById("reset-tariff-btn");
 
 let fb = null;
-let tools = []; // [{id, ...data}]
-let editingId = null;
 
-function showFormError(msg) { formErr.textContent = msg; formErr.hidden = !msg; }
-
+function showError(msg) { errEl.textContent = msg; errEl.hidden = !msg; }
 function flashStatus(msg) {
-  const el = document.getElementById("config-status");
+  const el = document.getElementById("tariff-status");
   el.textContent = msg;
   setTimeout(() => { el.textContent = ""; }, 2500);
 }
 
-/* ── Rendering ─────────────────────────────────────────── */
-function renderList() {
-  listEl.innerHTML = "";
-  document.getElementById("admin-tool-count").textContent = `(${tools.length})`;
-  if (!tools.length) {
-    listEl.innerHTML = `<p class="muted">No tools yet. Add your first one above.</p>`;
-    return;
+const fmt = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/* ── Build the editor from a (merged) tariff object ───────────────────────
+   Each number input carries dataset attributes describing where its value
+   belongs: level key, class code, kind (demand|flat|tou|res) and either a
+   tou key or a residential slab index. */
+function rateCell(labelText, value, ds) {
+  const cell = document.createElement("div");
+  cell.className = "rate-cell";
+  const label = document.createElement("label");
+  label.textContent = labelText;
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "0";
+  input.step = "0.01";
+  input.value = value;
+  Object.assign(input.dataset, ds);
+  cell.append(label, input);
+  return cell;
+}
+
+function buildEditor(tariff) {
+  editorEl.innerHTML = "";
+  for (const lvl of Object.keys(tariff)) {
+    const level = tariff[lvl];
+
+    const wrap = document.createElement("div");
+    wrap.className = "tariff-level";
+    const h = document.createElement("h3");
+    h.textContent = level.label;
+    wrap.appendChild(h);
+
+    for (const c of level.classes) {
+      const block = document.createElement("div");
+      block.className = "tariff-class";
+
+      const head = document.createElement("div");
+      head.className = "tc-head";
+      head.textContent = `${c.code} — ${c.label}`;
+      block.appendChild(head);
+
+      const rates = document.createElement("div");
+      rates.className = "tc-rates";
+
+      if (c.residential) {
+        c.residential.forEach((s, i) => {
+          rates.appendChild(rateCell(s.name, s.rate, { lvl, code: c.code, kind: "res", idx: String(i) }));
+        });
+      } else if (c.tou) {
+        for (const k of Object.keys(c.tou)) {
+          rates.appendChild(rateCell(RATE_LABELS[k], c.tou[k], { lvl, code: c.code, kind: "tou", key: k }));
+        }
+      } else {
+        rates.appendChild(rateCell("Energy (flat)", c.flat, { lvl, code: c.code, kind: "flat" }));
+      }
+
+      rates.appendChild(rateCell("Demand (Tk/kW)", c.demand, { lvl, code: c.code, kind: "demand" }));
+
+      block.appendChild(rates);
+      wrap.appendChild(block);
+    }
+    editorEl.appendChild(wrap);
   }
-  tools.forEach((t, i) => {
-    const row = document.createElement("div");
-    row.className = "admin-tool-row" + (t.visible === false ? " hidden-tool" : "");
-
-    const icon = document.createElement("span");
-    icon.className = "icon";
-    icon.textContent = t.icon || "🧰";
-
-    const info = document.createElement("div");
-    info.className = "info";
-    const strong = document.createElement("strong");
-    strong.textContent = t.name;
-    const span = document.createElement("span");
-    span.textContent = `${t.description || ""} → ${t.url || ""}`;
-    info.append(strong, span);
-
-    const actions = document.createElement("div");
-    actions.className = "row-actions";
-    actions.append(
-      iconBtn("↑", "Move up", () => move(i, -1), i === 0),
-      iconBtn("↓", "Move down", () => move(i, +1), i === tools.length - 1),
-      iconBtn(t.visible === false ? "Show" : "Hide", "Toggle visibility", () => toggleVisible(t)),
-      iconBtn("Edit", "Edit tool", () => startEdit(t)),
-      iconBtn("Delete", "Delete tool", () => removeTool(t), false, true),
-    );
-
-    row.append(icon, info, actions);
-    listEl.appendChild(row);
-  });
 }
 
-function iconBtn(label, title, onClick, disabled = false, danger = false) {
-  const b = document.createElement("button");
-  b.className = "icon-btn" + (danger ? " danger" : "");
-  b.textContent = label;
-  b.title = title;
-  b.disabled = disabled;
-  b.addEventListener("click", onClick);
-  return b;
+/* ── Read the editor back into a rates-overrides object ───────────────────── */
+function readEditor() {
+  const rates = {};
+  for (const inp of editorEl.querySelectorAll("input[data-lvl]")) {
+    const v = parseFloat(inp.value);
+    if (isNaN(v)) continue;
+    const { lvl, code, kind, key, idx } = inp.dataset;
+    (rates[lvl] ??= {});
+    (rates[lvl][code] ??= {});
+    const r = rates[lvl][code];
+    if (kind === "demand") r.demand = v;
+    else if (kind === "flat") r.flat = v;
+    else if (kind === "tou") { (r.tou ??= {})[key] = v; }
+    else if (kind === "res") { (r.residential ??= [])[+idx] = v; }
+  }
+  return rates;
 }
 
-/* ── Data ops ─────────────────────────────────────────── */
-async function loadTools() {
+/* ── Load / save ──────────────────────────────────────────────────────────── */
+async function loadTariff() {
   const { db, dbMod } = fb;
-  const { collection, getDocs, query, orderBy } = dbMod;
-  const snap = await getDocs(query(collection(db, "tools"), orderBy("order", "asc")));
-  tools = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  renderList();
+  const { doc, getDoc } = dbMod;
+  let rates = null, effective = DEFAULT_EFFECTIVE, vat = DEFAULT_VAT;
+  try {
+    const snap = await getDoc(doc(db, "tariffs", "dpdc"));
+    if (snap.exists()) {
+      const d = snap.data();
+      rates = d.rates || null;
+      if (typeof d.effective === "string" && d.effective.trim()) effective = d.effective.trim();
+      if (typeof d.vat === "number") vat = d.vat;
+    }
+  } catch { /* first run: doc doesn't exist yet — use code defaults */ }
+  effInput.value = effective;
+  vatInput.value = vat;
+  buildEditor(applyOverrides(rates));
 }
 
-async function saveTool() {
-  showFormError("");
-  const icon = document.getElementById("tool-icon").value.trim();
-  const name = document.getElementById("tool-name").value.trim();
-  const description = document.getElementById("tool-desc").value.trim();
-  const url = document.getElementById("tool-url").value.trim();
-  if (!name) return showFormError("Give the tool a name.");
-  if (!url) return showFormError("Give the tool a link.");
+async function saveTariff() {
+  showError("");
+  const effective = effInput.value.trim();
+  const vat = parseFloat(vatInput.value);
+  if (!effective) return showError("Set an effective date/label.");
+  if (isNaN(vat) || vat < 0) return showError("VAT must be a number (percent).");
 
   const { db, dbMod } = fb;
-  const { collection, addDoc, doc, updateDoc } = dbMod;
-
+  const { doc, setDoc } = dbMod;
   saveBtn.disabled = true;
   try {
-    if (editingId) {
-      await updateDoc(doc(db, "tools", editingId), { icon, name, description, url });
-    } else {
-      const order = tools.length ? Math.max(...tools.map(t => t.order ?? 0)) + 1 : 1;
-      await addDoc(collection(db, "tools"), { icon, name, description, url, order, visible: true });
-    }
-    resetForm();
-    await loadTools();
+    await setDoc(doc(db, "tariffs", "dpdc"), { effective, vat, rates: readEditor() });
+    flashStatus("Saved ✓");
   } catch (err) {
     console.error(err);
-    showFormError("Couldn't save. Check your Firestore rules and connection.");
+    showError("Couldn't save. Check your Firestore rules and connection.");
   } finally {
     saveBtn.disabled = false;
   }
 }
 
-function startEdit(t) {
-  editingId = t.id;
-  document.getElementById("form-heading").textContent = `Editing: ${t.name}`;
-  document.getElementById("tool-icon").value = t.icon || "";
-  document.getElementById("tool-name").value = t.name || "";
-  document.getElementById("tool-desc").value = t.description || "";
-  document.getElementById("tool-url").value = t.url || "";
-  saveBtn.textContent = "Save changes";
-  cancelBtn.hidden = false;
-  window.scrollTo({ top: 0, behavior: "smooth" });
+function resetToDefaults() {
+  if (!confirm("Reset every field back to the values hard-coded in the site? This only refills the form — nothing is saved until you press Save.")) return;
+  effInput.value = DEFAULT_EFFECTIVE;
+  vatInput.value = DEFAULT_VAT;
+  buildEditor(structuredClone(DEFAULT_TARIFF));
 }
 
-function resetForm() {
-  editingId = null;
-  document.getElementById("form-heading").textContent = "Add a tool";
-  ["tool-icon", "tool-name", "tool-desc", "tool-url"].forEach(id => document.getElementById(id).value = "");
-  saveBtn.textContent = "Add tool";
-  cancelBtn.hidden = true;
-  showFormError("");
-}
-
-async function removeTool(t) {
-  if (!confirm(`Delete "${t.name}"? This can't be undone.`)) return;
-  const { db, dbMod } = fb;
-  const { doc, deleteDoc } = dbMod;
-  await deleteDoc(doc(db, "tools", t.id));
-  if (editingId === t.id) resetForm();
-  await loadTools();
-}
-
-async function toggleVisible(t) {
-  const { db, dbMod } = fb;
-  const { doc, updateDoc } = dbMod;
-  await updateDoc(doc(db, "tools", t.id), { visible: t.visible === false });
-  await loadTools();
-}
-
-async function move(index, delta) {
-  const other = index + delta;
-  if (other < 0 || other >= tools.length) return;
-  const { db, dbMod } = fb;
-  const { doc, updateDoc } = dbMod;
-  const a = tools[index], b = tools[other];
-  const aOrder = a.order ?? index + 1, bOrder = b.order ?? other + 1;
-  await Promise.all([
-    updateDoc(doc(db, "tools", a.id), { order: bOrder }),
-    updateDoc(doc(db, "tools", b.id), { order: aOrder }),
-  ]);
-  await loadTools();
-}
-
-/* ── Site config ──────────────────────────────────────── */
-async function loadConfig() {
-  const { db, dbMod } = fb;
-  const { doc, getDoc } = dbMod;
-  try {
-    const snap = await getDoc(doc(db, "site", "config"));
-    if (snap.exists()) {
-      const c = snap.data();
-      document.getElementById("cfg-title").value = c.title || "";
-      document.getElementById("cfg-subtitle").value = c.subtitle || "";
-    }
-  } catch { /* first run: doc doesn't exist yet */ }
-}
-
-async function saveConfig() {
-  const { db, dbMod } = fb;
-  const { doc, setDoc } = dbMod;
-  await setDoc(doc(db, "site", "config"), {
-    title: document.getElementById("cfg-title").value.trim(),
-    subtitle: document.getElementById("cfg-subtitle").value.trim(),
-  }, { merge: true });
-  flashStatus("Saved ✓");
-}
-
-/* ── Boot ─────────────────────────────────────────────── */
+/* ── Boot ─────────────────────────────────────────────────────────────────── */
 async function boot() {
   if (!isConfigured) {
     checking.textContent = "Firebase isn't configured yet. See README.md, then reload.";
@@ -196,16 +163,15 @@ async function boot() {
     document.getElementById("admin-email").textContent = user.email || "";
     checking.hidden = true;
     main.hidden = false;
-    await Promise.all([loadTools(), loadConfig()]);
+    await loadTariff();
   });
 
   document.getElementById("logout-btn").addEventListener("click", async () => {
     await signOut(fb.auth);
     window.location.replace("index.html");
   });
-  saveBtn.addEventListener("click", saveTool);
-  cancelBtn.addEventListener("click", resetForm);
-  document.getElementById("save-config-btn").addEventListener("click", saveConfig);
+  saveBtn.addEventListener("click", saveTariff);
+  resetBtn.addEventListener("click", resetToDefaults);
 }
 
 boot();

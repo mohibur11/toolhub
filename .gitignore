@@ -1,0 +1,12 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.log
+
+# Local tooling
+node_modules/
+.vscode/
+
+# Firebase local emulator / debug (not the public config, which is safe to commit)
+.firebase/
+firebase-debug.log

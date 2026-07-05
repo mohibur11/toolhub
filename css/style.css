@@ -196,6 +196,31 @@ input:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; bor
 .icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
 .icon-btn:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }
 
+/* ─── Tariff editor (admin) ──────────────────────────── */
+.tariff-editor { display: grid; gap: 1.4rem; margin-top: 0.6rem; }
+.tariff-level > h3 {
+  margin: 0 0 0.6rem; font-size: 0.95rem;
+  padding-bottom: 0.4rem; border-bottom: 1px solid var(--line);
+}
+.tariff-class {
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 0.7rem 0.85rem; margin-bottom: 0.7rem; background: var(--paper);
+}
+.tc-head { font-size: 0.88rem; font-weight: 500; margin-bottom: 0.55rem; }
+.tc-rates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+.rate-cell label {
+  font-size: 0.66rem; letter-spacing: 0.04em; margin-bottom: 0.2rem;
+}
+.rate-cell input[type="number"] {
+  width: 100%; padding: 0.4rem 0.5rem; font: inherit; font-size: 0.9rem;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink);
+}
+.rate-cell input:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; border-color: var(--cobalt); }
+
 @media (max-width: 560px) {
   .header-inner { flex-direction: column; align-items: flex-start; }
   .admin-tool-row { flex-wrap: wrap; }

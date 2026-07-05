@@ -1,14 +1,8 @@
-import { getFirebase, isConfigured } from "./firebase-init.js";
+import { TOOLS } from "./tools.js";
 
 const grid = document.getElementById("tool-grid");
 const emptyState = document.getElementById("empty-state");
 const countEl = document.getElementById("tool-count");
-
-const DEMO_TOOLS = [
-  { icon: "🧮", name: "Unit converter", description: "Convert length, weight, and temperature.", url: "#" },
-  { icon: "🎨", name: "Color picker", description: "Grab hex and RGB values from a palette.", url: "#" },
-  { icon: "📝", name: "Notes", description: "Quick scratchpad that lives in your browser.", url: "#" },
-];
 
 function render(tools) {
   grid.innerHTML = "";
@@ -40,40 +34,4 @@ function render(tools) {
   }
 }
 
-async function main() {
-  if (!isConfigured) {
-    document.getElementById("setup-banner").hidden = false;
-    render(DEMO_TOOLS);
-    return;
-  }
-
-  try {
-    const { db, dbMod } = await getFirebase();
-    const { doc, getDoc, collection, getDocs, query, orderBy } = dbMod;
-
-    // Site title / tagline
-    try {
-      const cfg = await getDoc(doc(db, "site", "config"));
-      if (cfg.exists()) {
-        const c = cfg.data();
-        if (c.title) {
-          document.getElementById("site-title").textContent = c.title;
-          document.title = c.title;
-        }
-        if (c.subtitle) document.getElementById("site-subtitle").textContent = c.subtitle;
-      }
-    } catch { /* config doc is optional */ }
-
-    // Tools
-    const snap = await getDocs(query(collection(db, "tools"), orderBy("order", "asc")));
-    const tools = snap.docs.map(d => d.data()).filter(t => t.visible !== false);
-    render(tools);
-  } catch (err) {
-    console.error(err);
-    grid.innerHTML = "";
-    emptyState.hidden = false;
-    emptyState.querySelector("p").textContent = "Couldn't load tools right now.";
-  }
-}
-
-main();
+render(TOOLS);

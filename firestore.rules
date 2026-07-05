@@ -9,12 +9,10 @@ service cloud.firestore {
         && request.auth.uid == "PASTE_YOUR_ADMIN_UID_HERE";
     }
 
-    match /tools/{toolId} {
-      allow read: if true;      // everyone can see the tool list
-      allow write: if isAdmin(); // only you can change it
-    }
-
-    match /site/{docId} {
+    // Bill-calculator tariff rates. Public can read (the calculator needs
+    // them); only the admin can change them. Tools themselves are defined in
+    // code (js/tools.js), so there is no writable "tools" collection anymore.
+    match /tariffs/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }

@@ -29,52 +29,32 @@
   <main class="wrap admin-main" id="admin-main" hidden>
 
     <section class="panel">
-      <h2>Site settings</h2>
-      <div class="field-row">
-        <div class="field">
-          <label for="cfg-title">Site title</label>
-          <input id="cfg-title" type="text" placeholder="Toolhub">
-        </div>
-        <div class="field">
-          <label for="cfg-subtitle">Tagline</label>
-          <input id="cfg-subtitle" type="text" placeholder="Small tools, one shelf.">
-        </div>
-      </div>
-      <button id="save-config-btn" class="btn primary">Save settings</button>
-      <span id="config-status" class="status"></span>
-    </section>
-
-    <section class="panel">
-      <h2 id="form-heading">Add a tool</h2>
+      <h2>DPDC tariff rates</h2>
+      <p class="muted small" style="margin-top:-0.5rem">
+        Set every rate used by the DPDC Bill Calculator. Structure (voltage levels, consumer
+        classes, slab bands) is fixed in code; here you edit the numbers. Energy rates are in
+        Taka/kWh, demand charges in Taka/kW/month.
+      </p>
       <div class="field-row">
         <div class="field small-field">
-          <label for="tool-icon">Icon (emoji)</label>
-          <input id="tool-icon" type="text" maxlength="4" placeholder="🧰">
+          <label for="tf-effective">Effective</label>
+          <input id="tf-effective" type="text" placeholder="June 2026">
         </div>
-        <div class="field">
-          <label for="tool-name">Name</label>
-          <input id="tool-name" type="text" placeholder="Unit converter">
+        <div class="field small-field">
+          <label for="tf-vat">VAT (%)</label>
+          <input id="tf-vat" type="number" min="0" step="0.1" placeholder="5">
         </div>
       </div>
-      <div class="field">
-        <label for="tool-desc">Description</label>
-        <input id="tool-desc" type="text" placeholder="One line about what it does">
-      </div>
-      <div class="field">
-        <label for="tool-url">Link (URL or relative path like tools/converter.html)</label>
-        <input id="tool-url" type="text" placeholder="tools/converter/">
-      </div>
-      <p id="tool-form-error" class="error" role="alert" hidden></p>
-      <div class="btn-row">
-        <button id="save-tool-btn" class="btn primary">Add tool</button>
-        <button id="cancel-edit-btn" class="btn ghost" hidden>Cancel edit</button>
-      </div>
-    </section>
 
-    <section class="panel">
-      <h2>Tools <span id="admin-tool-count" class="mono muted"></span></h2>
-      <div id="admin-tool-list" class="admin-tool-list">
-        <p class="loading">Loading…</p>
+      <div id="tariff-editor" class="tariff-editor">
+        <p class="loading">Loading rates…</p>
+      </div>
+
+      <p id="tariff-error" class="error" role="alert" hidden></p>
+      <div class="btn-row" style="margin-top:1rem">
+        <button id="save-tariff-btn" class="btn primary">Save tariff</button>
+        <button id="reset-tariff-btn" class="btn ghost">Reset to code defaults</button>
+        <span id="tariff-status" class="status"></span>
       </div>
     </section>
 

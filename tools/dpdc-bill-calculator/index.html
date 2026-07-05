@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DPDC Bill Calculator · Toolhub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/style.css">
+  <style>
+    .calc-main { padding: 1.6rem 0 3rem; display: grid; gap: 1.2rem; }
+    .calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; align-items: start; }
+    @media (max-width: 720px) { .calc-grid { grid-template-columns: 1fr; } }
+
+    select {
+      width: 100%; padding: 0.6rem 0.7rem;
+      font: inherit; font-size: 0.95rem;
+      border: 1px solid var(--line); border-radius: 8px;
+      background: var(--card); color: var(--ink);
+    }
+    select:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; border-color: var(--cobalt); }
+    input[type="number"] {
+      width: 100%; padding: 0.6rem 0.7rem;
+      font: inherit; font-size: 0.95rem;
+      border: 1px solid var(--line); border-radius: 8px;
+      background: var(--card); color: var(--ink);
+    }
+    input[type="number"]:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; border-color: var(--cobalt); }
+    .hint { margin: 0.3rem 0 0; font-size: 0.75rem; color: var(--muted); line-height: 1.4; }
+    .check-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
+    .check-row input { width: auto; }
+    .check-row label { margin: 0; text-transform: none; letter-spacing: 0; font-size: 0.85rem; font-family: var(--font-display); color: var(--ink); }
+
+    /* Result */
+    .result-total {
+      background: var(--cobalt); color: #fff;
+      border-radius: var(--radius); padding: 1.2rem 1.3rem;
+      margin-bottom: 1rem;
+    }
+    .result-total .label { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85; }
+    .result-total .amount { font-size: 2.1rem; font-weight: 700; letter-spacing: -0.02em; margin-top: 0.2rem; }
+    .result-total .amount small { font-size: 1rem; font-weight: 500; opacity: 0.85; }
+    .result-meta { font-size: 0.78rem; opacity: 0.9; margin-top: 0.35rem; }
+
+    table.breakdown { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    table.breakdown th, table.breakdown td { text-align: left; padding: 0.45rem 0.4rem; border-bottom: 1px solid var(--line); }
+    table.breakdown th { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+    table.breakdown td.num, table.breakdown th.num { text-align: right; font-family: var(--font-mono); }
+    table.breakdown tr.sub td { border-top: 1px solid var(--ink); font-weight: 500; }
+    table.breakdown tr.grand td { font-weight: 700; font-size: 0.95rem; border-bottom: none; }
+    table.breakdown tr.slab td:first-child { padding-left: 1.1rem; color: var(--muted); }
+
+    .placeholder { color: var(--muted); font-family: var(--font-mono); font-size: 0.85rem; text-align: center; padding: 2rem 0; }
+    .disclaimer { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+    .disclaimer a { color: var(--cobalt); }
+    .badge { display: inline-block; font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.08em; padding: 0.15rem 0.5rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <span class="brand-mark">⚡</span>
+        <div>
+          <h1>DPDC Bill Calculator</h1>
+          <p class="subtitle">Estimate a retail electricity bill from DPDC tariff rates.</p>
+        </div>
+      </div>
+      <a class="btn ghost" href="../../index.html">← Toolhub</a>
+    </div>
+  </header>
+
+  <main class="wrap calc-main">
+    <div class="calc-grid">
+      <!-- Inputs -->
+      <section class="panel">
+        <h2>Inputs</h2>
+
+        <div class="field">
+          <label for="level">Voltage level (Tension)</label>
+          <select id="level"></select>
+          <p class="hint" id="level-hint"></p>
+        </div>
+
+        <div class="field">
+          <label for="ctype">Consumer type</label>
+          <select id="ctype"></select>
+        </div>
+
+        <div class="field" id="rate-field" hidden>
+          <label for="ratetype">Time-of-use rate</label>
+          <select id="ratetype"></select>
+          <p class="hint">This class has peak / off-peak rates. Pick which applies, or use the flat rate.</p>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="units">Units consumed (kWh)</label>
+            <input type="number" id="units" min="0" step="1" placeholder="e.g. 350" value="350">
+          </div>
+          <div class="field">
+            <label for="load">Sanctioned load (kW)</label>
+            <input type="number" id="load" min="0" step="0.1" placeholder="e.g. 5" value="5">
+          </div>
+        </div>
+
+        <div class="check-row">
+          <input type="checkbox" id="vat" checked>
+          <label for="vat" id="vat-label">Add 5% VAT (standard government rate)</label>
+        </div>
+
+        <div class="btn-row" style="margin-top: 1.1rem;">
+          <button class="btn primary" id="calc-btn">Calculate bill</button>
+          <button class="btn ghost" id="reset-btn">Reset</button>
+        </div>
+      </section>
+
+      <!-- Result -->
+      <section class="panel">
+        <h2>Estimated bill <span class="badge" id="eff-badge"></span></h2>
+        <div id="result">
+          <p class="placeholder">Fill in the inputs and press <strong>Calculate bill</strong>.</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <p class="disclaimer">
+        Rates are taken from DPDC's published retail tariff schedule
+        (<a href="https://dpdc.gov.bd/pages/static-pages/6922de6f933eb65569e1a9c4" target="_blank" rel="noopener">dpdc.gov.bd tariff page</a>),
+        effective <strong id="eff-text"></strong>. This is an <strong>estimate</strong>: the tariff sheet lists only the
+        energy rate and demand charge, so meter rent, service charge, rebates, late-payment surcharge and any
+        adjustment charges are not included. VAT is applied at the standard 5%. For residential (LT-A), consumers
+        using 50 units or less are billed at the lifeline rate for all units; above 50 units, the progressive
+        slab rates apply. Verify against your actual bill before relying on this figure.
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <span class="muted mono">toolhub · dpdc bill calculator</span>
+      <a class="admin-link" href="../../index.html">Back to tools</a>
+    </div>
+  </footer>
+
+  <script type="module">
+  import { DEFAULT_TARIFF, DEFAULT_EFFECTIVE, DEFAULT_VAT, RATE_LABELS, applyOverrides } from "../../js/dpdc-tariff.js";
+  import { getFirebase, isConfigured } from "../../js/firebase-init.js";
+
+  // Live state — starts from bundled defaults so the page works instantly and
+  // offline; admin-set rates from Firestore overlay these once they load.
+  let TARIFF = applyOverrides(null);
+  let EFFECTIVE = DEFAULT_EFFECTIVE;
+  let VAT = DEFAULT_VAT; // percent
+  let lastResultShown = false;
+
+  // ── Element refs ────────────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const levelSel = $("level"), ctypeSel = $("ctype"), rateSel = $("ratetype");
+  const rateField = $("rate-field"), levelHint = $("level-hint");
+  const unitsIn = $("units"), loadIn = $("load"), vatChk = $("vat");
+  const resultEl = $("result");
+  const vatLabel = $("vat-label");
+
+  function refreshEffective() {
+    $("eff-badge").textContent = EFFECTIVE;
+    $("eff-text").textContent = EFFECTIVE;
+    vatLabel.textContent = `Add ${VAT}% VAT (standard government rate)`;
+  }
+
+  const fmt = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  function currentClass() {
+    return TARIFF[levelSel.value].classes.find(c => c.code === ctypeSel.value);
+  }
+
+  // ── Populate dropdowns ──────────────────────────────────────────────────
+  function initLevels() {
+    for (const key of Object.keys(TARIFF)) {
+      const o = document.createElement("option");
+      o.value = key; o.textContent = TARIFF[key].label;
+      levelSel.appendChild(o);
+    }
+  }
+
+  function populateClasses() {
+    const lvl = TARIFF[levelSel.value];
+    levelHint.textContent = lvl.hint;
+    ctypeSel.innerHTML = "";
+    for (const c of lvl.classes) {
+      const o = document.createElement("option");
+      o.value = c.code; o.textContent = `${c.code} — ${c.label}`;
+      ctypeSel.appendChild(o);
+    }
+    populateRates();
+  }
+
+  function populateRates() {
+    const c = currentClass();
+    if (c && c.tou) {
+      rateSel.innerHTML = "";
+      for (const k of Object.keys(c.tou)) {
+        const o = document.createElement("option");
+        o.value = k; o.textContent = `${RATE_LABELS[k]} — ${fmt(c.tou[k])} Tk/kWh`;
+        rateSel.appendChild(o);
+      }
+      rateField.hidden = false;
+    } else {
+      rateField.hidden = true;
+    }
+  }
+
+  // ── Energy charge computation ─────────────────────────────────────────────
+  function computeEnergy(c, units) {
+    const rows = [];
+    let total = 0;
+
+    if (c.residential) {
+      if (units <= 50) {
+        const line = c.residential[0]; // lifeline
+        total = units * line.rate;
+        rows.push({ label: `${line.name}`, detail: `${units} × ${fmt(line.rate)}`, amount: total });
+      } else {
+        let prevCap = 0;
+        for (const s of c.residential) {
+          if (s.upto === undefined) continue; // skip lifeline row
+          const cap = s.upto;
+          const inSlab = Math.min(units, cap) - prevCap;
+          if (inSlab > 0) {
+            const amt = inSlab * s.rate;
+            total += amt;
+            rows.push({ label: s.name, detail: `${inSlab} × ${fmt(s.rate)}`, amount: amt });
+          }
+          prevCap = cap;
+          if (units <= cap) break;
+        }
+      }
+    } else if (c.tou) {
+      const rate = c.tou[rateSel.value];
+      total = units * rate;
+      rows.push({ label: `Energy (${RATE_LABELS[rateSel.value]})`, detail: `${units} × ${fmt(rate)}`, amount: total });
+    } else {
+      total = units * c.flat;
+      rows.push({ label: "Energy", detail: `${units} × ${fmt(c.flat)}`, amount: total });
+    }
+    return { rows, total };
+  }
+
+  // ── Calculate & render ────────────────────────────────────────────────────
+  function calculate() {
+    const c = currentClass();
+    const units = Math.max(0, parseFloat(unitsIn.value) || 0);
+    const load = Math.max(0, parseFloat(loadIn.value) || 0);
+
+    const energy = computeEnergy(c, units);
+    const demand = load * c.demand;
+    const subtotal = energy.total + demand;
+    const vat = vatChk.checked ? subtotal * (VAT / 100) : 0;
+    const grand = subtotal + vat;
+    lastResultShown = true;
+
+    let html = `
+      <div class="result-total">
+        <div class="label">Estimated total</div>
+        <div class="amount">৳ ${fmt(grand)} <small>BDT</small></div>
+        <div class="result-meta">${c.code} · ${c.label} · ${units} kWh · ${load} kW load</div>
+      </div>
+      <table class="breakdown">
+        <thead><tr><th>Component</th><th class="num">Detail</th><th class="num">Amount (৳)</th></tr></thead>
+        <tbody>`;
+
+    // energy rows
+    if (energy.rows.length > 1) {
+      html += `<tr><td colspan="3" style="padding-bottom:0;font-weight:500;">Energy charge</td></tr>`;
+      for (const r of energy.rows) {
+        html += `<tr class="slab"><td>${r.label}</td><td class="num">${r.detail}</td><td class="num">${fmt(r.amount)}</td></tr>`;
+      }
+      html += `<tr><td>Energy charge subtotal</td><td class="num"></td><td class="num">${fmt(energy.total)}</td></tr>`;
+    } else {
+      const r = energy.rows[0];
+      html += `<tr><td>${r.label}</td><td class="num">${r.detail}</td><td class="num">${fmt(r.amount)}</td></tr>`;
+    }
+
+    // demand
+    html += `<tr><td>Demand charge</td><td class="num">${load} × ${fmt(c.demand)}</td><td class="num">${fmt(demand)}</td></tr>`;
+    // subtotal
+    html += `<tr class="sub"><td>Subtotal</td><td class="num"></td><td class="num">${fmt(subtotal)}</td></tr>`;
+    // vat
+    if (vatChk.checked) {
+      html += `<tr><td>VAT (${VAT}%)</td><td class="num"></td><td class="num">${fmt(vat)}</td></tr>`;
+    }
+    // grand
+    html += `<tr class="grand"><td>Total payable</td><td class="num"></td><td class="num">৳ ${fmt(grand)}</td></tr>`;
+    html += `</tbody></table>`;
+
+    resultEl.innerHTML = html;
+  }
+
+  function reset() {
+    levelSel.value = "LT";
+    populateClasses();
+    unitsIn.value = "350";
+    loadIn.value = "5";
+    vatChk.checked = true;
+    lastResultShown = false;
+    resultEl.innerHTML = `<p class="placeholder">Fill in the inputs and press <strong>Calculate bill</strong>.</p>`;
+  }
+
+  // Pull admin-set rates from Firestore (if any) and overlay them. Runs after
+  // the UI is already interactive, so a slow/absent network never blocks it.
+  async function loadOverrides() {
+    if (!isConfigured) return;
+    try {
+      const { db, dbMod } = await getFirebase();
+      const { doc, getDoc } = dbMod;
+      const snap = await getDoc(doc(db, "tariffs", "dpdc"));
+      if (!snap.exists()) return;
+      const data = snap.data();
+      TARIFF = applyOverrides(data.rates);
+      if (typeof data.effective === "string" && data.effective.trim()) EFFECTIVE = data.effective.trim();
+      if (typeof data.vat === "number") VAT = data.vat;
+      refreshEffective();
+      populateRates();          // refresh time-of-use rate labels with new numbers
+      if (lastResultShown) calculate();
+    } catch (err) {
+      console.warn("Using bundled default tariff (couldn't load admin rates):", err);
+    }
+  }
+
+  // ── Wire up ───────────────────────────────────────────────────────────────
+  refreshEffective();
+  initLevels();
+  populateClasses();
+  levelSel.addEventListener("change", populateClasses);
+  ctypeSel.addEventListener("change", populateRates);
+  $("calc-btn").addEventListener("click", calculate);
+  $("reset-btn").addEventListener("click", reset);
+  loadOverrides();
+  </script>
+</body>
+</html>

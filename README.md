@@ -1,8 +1,8 @@
 # Toolhub
 
-A lightweight tools homepage for GitHub Pages, with a real admin login (Firebase Auth) and an admin panel that edits the site from any device. No build step, no server to run — everything is free tier.
+A lightweight tools homepage for GitHub Pages. Tools are defined in code; the only thing served from a database is the DPDC Bill Calculator's tariff rates, which the admin can edit from any device via a real login (Firebase Auth). No build step, no server to run — everything is free tier.
 
-**How it works:** the site is static HTML/CSS/JS hosted on GitHub Pages. The tool list and site title live in Firestore (Firebase's database). The admin panel signs you in with email/password via Firebase Auth; Firestore security rules only allow *your* account to write. The Firebase config in `js/firebase-config.js` is safe to publish — it identifies the project but grants no access.
+**How it works:** the site is static HTML/CSS/JS hosted on GitHub Pages. The homepage tool list lives in code (`js/tools.js`) and loads instantly — no database call. The DPDC tariff rates live in Firestore (`tariffs/dpdc`); the admin panel signs you in with email/password via Firebase Auth and lets you edit every rate. Firestore security rules only allow *your* account to write. The Firebase config in `js/firebase-config.js` is safe to publish — it identifies the project but grants no access.
 
 ## Setup (one time, ~15 minutes)
 
@@ -24,7 +24,7 @@ A lightweight tools homepage for GitHub Pages, with a real admin login (Firebase
 1. Sidebar → **Build → Firestore Database → Create database** → choose a location → start in **production mode**.
 2. **Rules** tab → replace everything with the contents of **`firestore.rules`** from this folder, and replace `PASTE_YOUR_ADMIN_UID_HERE` with the UID you copied → **Publish**.
 
-These rules mean: anyone can read the tool list (the public site needs that), but only your signed-in account can add/edit/delete anything. This also blocks the known loophole where strangers self-register accounts — even if they somehow created one, the rules only trust your UID.
+These rules mean: anyone can read the tariff rates (the calculator needs that), but only your signed-in account can change them. This also blocks the known loophole where strangers self-register accounts — even if they somehow created one, the rules only trust your UID.
 
 ### 5. (Recommended) Restrict where login works
 Console → **Authentication → Settings → Authorized domains**: keep `localhost` and add `YOUR_USERNAME.github.io`. Remove anything else.
@@ -37,14 +37,20 @@ Console → **Authentication → Settings → Authorized domains**: keep `localh
 
 ## Daily use
 - Visit the site → footer → **Admin login** → sign in from any device.
-- Add a tool: give it an emoji, a name, a one-line description, and a link. The link can be an external URL or a relative path like `tools/converter/index.html` for tools you add to the repo later.
-- You can reorder tools, hide/show them, edit, or delete. Site title and tagline are editable too.
+- The admin panel is the **DPDC tariff editor**: change the effective date, VAT %, and every energy rate / demand charge, then **Save**. The calculator picks up the new numbers immediately (it falls back to the values bundled in code if it can't reach Firestore).
+- **Reset to code defaults** refills the form with the values hard-coded in `js/dpdc-tariff.js` (nothing is saved until you press Save).
 
-## Adding an actual tool page later
-Put its files in the repo, e.g. `tools/unit-converter/index.html`, push, then add a tool entry in the admin panel pointing to `tools/unit-converter/`.
+## Adding a tool (by code)
+Tools are not managed from the admin panel — they're defined in code so the homepage loads with no database call:
+1. Create the tool's page, e.g. `tools/unit-converter/index.html`.
+2. Add an entry to the `TOOLS` array in **`js/tools.js`** (icon, name, description, `url: "tools/unit-converter/"`).
+3. Push. It appears on the homepage.
+
+## Editing the calculator's fixed structure
+The tariff **structure** (which voltage levels, consumer classes, and slab bands exist) is defined in `js/dpdc-tariff.js`. Add a new consumer class there; its default numbers show up in the admin editor, where you can then tune them. Changing a *rate* is admin; changing the *structure* is code.
 
 ## Security notes (honest version)
 - Login and data writes are protected by Firebase — this is real authentication, not hidden-in-JavaScript.
-- The tool list itself is publicly readable by design (it's a public homepage).
+- The tariff rates are publicly readable by design (the calculator is public).
 - Don't store anything private in Firestore under this project unless you also lock its read rules.
 - If you ever suspect your password leaked, change it in Firebase console → Authentication.
