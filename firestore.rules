@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Replace with your admin account's UID
+    // (Firebase console → Authentication → Users → "User UID" column)
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.uid == "PASTE_YOUR_ADMIN_UID_HERE";
+    }
+
+    match /tools/{toolId} {
+      allow read: if true;      // everyone can see the tool list
+      allow write: if isAdmin(); // only you can change it
+    }
+
+    match /site/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Everything else: locked
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

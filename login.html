@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin login · Toolhub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="centered-page">
+  <main class="auth-card">
+    <a class="back-link" href="index.html">← Back to tools</a>
+    <h1>Admin login</h1>
+    <p class="muted">Sign in with your admin email and password.</p>
+
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" placeholder="admin@example.com">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+
+    <p id="login-error" class="error" role="alert" hidden></p>
+
+    <button id="login-btn" class="btn primary full">Sign in</button>
+
+    <p id="config-warning" class="muted small" hidden>
+      Firebase isn't configured yet, so login is disabled. See README.md.
+    </p>
+  </main>
+
+  <script type="module" src="js/login.js"></script>
+</body>
+</html>

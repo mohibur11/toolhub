@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toolhub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="setup-banner" class="setup-banner" hidden>
+    Firebase isn't configured yet — showing demo data. See <strong>README.md</strong> to connect your project.
+  </div>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <span class="brand-mark">⌘</span>
+        <div>
+          <h1 id="site-title">Toolhub</h1>
+          <p id="site-subtitle" class="subtitle">Small tools, one shelf.</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="shelf-label"><span>TOOLS</span><span id="tool-count"></span></div>
+    <section id="tool-grid" class="tool-grid" aria-live="polite">
+      <p class="loading">Loading tools…</p>
+    </section>
+    <section id="empty-state" class="empty-state" hidden>
+      <p>No tools on the shelf yet.</p>
+      <p class="muted">Tools added from the admin panel will appear here.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <span class="muted mono">toolhub · hosted on github pages</span>
+      <a class="admin-link" href="login.html">Admin login</a>
+    </div>
+  </footer>
+
+  <script type="module" src="js/home.js"></script>
+</body>
+</html>
