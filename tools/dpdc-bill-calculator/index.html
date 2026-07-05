@@ -9,52 +9,54 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../css/style.css">
   <style>
-    .calc-main { padding: 1.6rem 0 3rem; display: grid; gap: 1.2rem; }
-    .calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; align-items: start; }
+    .calc-main { padding: 1.8rem 0 3.5rem; display: grid; gap: 1.4rem; }
+    .calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; align-items: start; }
     @media (max-width: 720px) { .calc-grid { grid-template-columns: 1fr; } }
 
-    select {
-      width: 100%; padding: 0.6rem 0.7rem;
-      font: inherit; font-size: 0.95rem;
-      border: 1px solid var(--line); border-radius: 8px;
-      background: var(--card); color: var(--ink);
+    .hint { margin: 0.35rem 0 0; font-size: 0.75rem; color: var(--muted); line-height: 1.45; }
+    .check-row {
+      display: flex; align-items: center; gap: 0.55rem; margin-top: 0.5rem;
+      padding: 0.7rem 0.85rem; border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--a3) 9%, white);
     }
-    select:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; border-color: var(--cobalt); }
-    input[type="number"] {
-      width: 100%; padding: 0.6rem 0.7rem;
-      font: inherit; font-size: 0.95rem;
-      border: 1px solid var(--line); border-radius: 8px;
-      background: var(--card); color: var(--ink);
-    }
-    input[type="number"]:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; border-color: var(--cobalt); }
-    .hint { margin: 0.3rem 0 0; font-size: 0.75rem; color: var(--muted); line-height: 1.4; }
-    .check-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
-    .check-row input { width: auto; }
-    .check-row label { margin: 0; text-transform: none; letter-spacing: 0; font-size: 0.85rem; font-family: var(--font-display); color: var(--ink); }
+    .check-row input { width: auto; accent-color: var(--a3); width: 18px; height: 18px; }
+    .check-row label { margin: 0; text-transform: none; letter-spacing: 0; font-size: 0.88rem; font-family: var(--font-display); color: var(--ink); }
 
     /* Result */
     .result-total {
-      background: var(--cobalt); color: #fff;
-      border-radius: var(--radius); padding: 1.2rem 1.3rem;
-      margin-bottom: 1rem;
+      background: var(--grad-primary); color: #fff;
+      border-radius: var(--radius); padding: 1.5rem 1.6rem;
+      margin-bottom: 1.2rem;
+      box-shadow: 0 14px 32px rgba(108, 92, 231, 0.38);
+      position: relative; overflow: hidden;
     }
-    .result-total .label { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85; }
-    .result-total .amount { font-size: 2.1rem; font-weight: 700; letter-spacing: -0.02em; margin-top: 0.2rem; }
+    .result-total::after {
+      content: ""; position: absolute; top: -50px; right: -30px;
+      width: 150px; height: 150px; border-radius: 50%;
+      background: rgba(255,255,255,0.16);
+    }
+    .result-total .label { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.9; }
+    .result-total .amount { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.02em; margin-top: 0.25rem; }
     .result-total .amount small { font-size: 1rem; font-weight: 500; opacity: 0.85; }
-    .result-meta { font-size: 0.78rem; opacity: 0.9; margin-top: 0.35rem; }
+    .result-meta { font-size: 0.78rem; opacity: 0.92; margin-top: 0.4rem; position: relative; }
 
     table.breakdown { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
-    table.breakdown th, table.breakdown td { text-align: left; padding: 0.45rem 0.4rem; border-bottom: 1px solid var(--line); }
+    table.breakdown th, table.breakdown td { text-align: left; padding: 0.5rem 0.45rem; border-bottom: 1px solid var(--line); }
     table.breakdown th { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
     table.breakdown td.num, table.breakdown th.num { text-align: right; font-family: var(--font-mono); }
-    table.breakdown tr.sub td { border-top: 1px solid var(--ink); font-weight: 500; }
-    table.breakdown tr.grand td { font-weight: 700; font-size: 0.95rem; border-bottom: none; }
+    table.breakdown tr.sub td { border-top: 2px solid var(--line); font-weight: 600; }
+    table.breakdown tr.grand td { font-weight: 700; font-size: 1rem; border-bottom: none; color: var(--cobalt-dark); }
     table.breakdown tr.slab td:first-child { padding-left: 1.1rem; color: var(--muted); }
 
-    .placeholder { color: var(--muted); font-family: var(--font-mono); font-size: 0.85rem; text-align: center; padding: 2rem 0; }
-    .disclaimer { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+    .placeholder { color: var(--muted); font-family: var(--font-mono); font-size: 0.85rem; text-align: center; padding: 2.5rem 1rem; }
+    .disclaimer { font-size: 0.78rem; color: var(--muted); line-height: 1.55; }
     .disclaimer a { color: var(--cobalt); }
-    .badge { display: inline-block; font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.08em; padding: 0.15rem 0.5rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+    .badge {
+      display: inline-block; font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.06em;
+      padding: 0.2rem 0.6rem; border-radius: 999px;
+      background: color-mix(in srgb, var(--a4) 18%, white); color: #9A6300; border: none;
+      vertical-align: middle;
+    }
   </style>
 </head>
 <body>
