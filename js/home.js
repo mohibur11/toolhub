@@ -1,4 +1,4 @@
-import { TOOLS } from "./tools.js";
+import { TOOLS } from "./tools.js?v=2";
 
 const grid = document.getElementById("tool-grid");
 const emptyState = document.getElementById("empty-state");
