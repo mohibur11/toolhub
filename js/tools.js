@@ -10,4 +10,10 @@ export const TOOLS = [
     description: "Estimate a DPDC electricity bill from the current tariff rates.",
     url: "tools/dpdc-bill-calculator/",
   },
+  {
+    icon: "৳",
+    name: "Kor Hishab",
+    description: "Bangladesh individual income tax calculator — full return computation for AY 2026–27 and 2025–26.",
+    url: "tools/kor-hishab/",
+  },
 ];
