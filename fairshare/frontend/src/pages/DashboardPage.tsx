@@ -5,6 +5,7 @@ import type { GroupSummary } from '@shared/types';
 import { useGroups } from '../api/hooks';
 import { useAuth, useMe } from '../auth/AuthContext';
 import CreateGroupModal from './CreateGroupModal';
+import ProfileNameDialog from '../components/ProfileNameDialog';
 import { AppBar, Avatar, AvatarStack, Balance, EmptyState, ErrorState, Icon, ListSkeleton, Page } from '../components/ui';
 import { TOOLHUB_URL } from '../config';
 import { relativeTime } from '../lib/date';
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [creating, setCreating] = useState(false);
   const [menu, setMenu] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [editingName, setEditingName] = useState(false);
 
   const list = groups.data ?? [];
   const active = list.filter((g) => !g.archived);
@@ -38,6 +40,15 @@ export default function DashboardPage() {
                     <p className="truncate text-sm font-semibold">{me.name}</p>
                     <p className="truncate text-xs text-slate-500">{me.email}</p>
                   </div>
+                  <button
+                    onClick={() => {
+                      setMenu(false);
+                      setEditingName(true);
+                    }}
+                    className="btn-ghost w-full justify-start"
+                  >
+                    <Icon name="edit" /> Change your name
+                  </button>
                   <a href={TOOLHUB_URL} className="btn-ghost w-full justify-start">
                     <Icon name="back" /> Back to Toolhub
                   </a>
@@ -92,6 +103,7 @@ export default function DashboardPage() {
         )}
       </Page>
       <CreateGroupModal open={creating} onClose={() => setCreating(false)} />
+      <ProfileNameDialog open={editingName} onClose={() => setEditingName(false)} />
     </>
   );
 }

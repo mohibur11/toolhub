@@ -1,8 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { GroupDetail } from '@shared/types';
+import type { GroupDetail, Member } from '@shared/types';
 import { useDeleteGroup, useGroup, useGroupWrite } from '../api/hooks';
 import { useMe } from '../auth/AuthContext';
+import NameDialog from '../components/NameDialog';
+import ProfileNameDialog from '../components/ProfileNameDialog';
 import { useToast } from '../components/Toast';
 import { AppBar, Avatar, Balance, ErrorState, Icon, ListSkeleton, Page, Spinner, Toggle } from '../components/ui';
 import { downloadText, groupToCsv } from '../lib/csv';
@@ -32,6 +34,9 @@ function Settings({ d }: { d: GroupDetail }) {
   const [name, setName] = useState(d.group.name);
   const [description, setDescription] = useState(d.group.description);
   const [newEmail, setNewEmail] = useState('');
+  const [renaming, setRenaming] = useState<Member | null>(null);
+  const [editingOwnName, setEditingOwnName] = useState(false);
+  const setNickname = useGroupWrite(d.group.id, 'setMemberNickname');
   const isOwner = d.members.find((m) => m.email === me.email)?.role === 'owner';
   const dirty = name !== d.group.name || description !== d.group.description;
 
@@ -115,9 +120,22 @@ function Settings({ d }: { d: GroupDetail }) {
                     {m.displayName} {self && <span className="text-slate-400">(you)</span>}
                     {m.role === 'owner' && <span className="ml-1 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold text-brand-800 dark:bg-brand-900/50 dark:text-brand-200">OWNER</span>}
                   </p>
-                  <p className="truncate text-xs text-slate-500">{m.email}</p>
+                  <p className="truncate text-xs text-slate-500">
+                    {m.nickname && m.nickname !== m.profileName ? `${m.profileName} · ` : ''}
+                    {m.email}
+                  </p>
                 </div>
                 <Balance minor={net} currency={d.group.currency} className="text-xs" />
+                {(isOwner || self) && (
+                  <button
+                    className="btn-ghost"
+                    onClick={() => (isOwner ? setRenaming(m) : setEditingOwnName(true))}
+                    aria-label={`Change ${self ? 'your' : `${m.displayName}'s`} name`}
+                    title={isOwner ? 'Change name in this group' : 'Change your name'}
+                  >
+                    <Icon name="edit" className="h-4 w-4" />
+                  </button>
+                )}
                 {canRemove && (
                   <button
                     className="btn-ghost text-xs text-rose-600"
@@ -138,7 +156,27 @@ function Settings({ d }: { d: GroupDetail }) {
             </button>
           </form>
         </div>
-        <p className="mt-2 px-1 text-xs text-slate-500">Members need a settled balance (zero) before they can leave or be removed.</p>
+        <p className="mt-2 px-1 text-xs text-slate-500">
+          {isOwner
+            ? 'Tap ✎ to change how a member is named in this group. '
+            : 'Tap ✎ on your row to change your name. '}
+          Members need a settled balance (zero) before they can leave or be removed.
+        </p>
+        <NameDialog
+          open={renaming !== null}
+          title={renaming?.email === me.email ? 'Your name in this group' : `Rename ${renaming?.displayName ?? ''}`}
+          hint={`Only changes the name shown in "${d.group.name}". ${renaming?.email === me.email ? 'Your' : 'Their'} name in other groups stays the same.`}
+          current={renaming?.nickname ?? ''}
+          defaultName={renaming?.profileName ?? ''}
+          saving={setNickname.isPending}
+          onSave={(nickname) => {
+            if (!renaming) return;
+            setNickname.mutate({ email: renaming.email, nickname }, { onSuccess: () => toast.success('Name updated') });
+            setRenaming(null);
+          }}
+          onClose={() => setRenaming(null)}
+        />
+        <ProfileNameDialog open={editingOwnName} onClose={() => setEditingOwnName(false)} />
       </section>
 
       <section>

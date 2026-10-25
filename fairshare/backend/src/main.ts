@@ -6,10 +6,21 @@ import { optionalProp } from './config';
 import { ApiError } from './errors';
 import { addExpense, addPayment, deleteExpense, deletePayment, restoreExpense, updateExpense } from './expenses';
 import { readActivity } from './groupSheet';
-import { addMember, archiveGroup, createGroup, deleteGroup, getGroupDetail, listGroups, removeMember, updateGroup } from './groups';
+import {
+  addMember,
+  archiveGroup,
+  createGroup,
+  deleteGroup,
+  getGroupDetail,
+  listGroups,
+  removeMember,
+  setMemberNickname,
+  updateGroup,
+} from './groups';
+import { updateProfile } from './profile';
 import { getReceipt, uploadReceipt } from './receipts';
 import { groupCtx } from './detail';
-import { upsertUser } from './registry';
+import { upsertUser, withProfileName } from './registry';
 
 export { setup } from './setup';
 export { weeklyBackup } from './backup';
@@ -37,12 +48,14 @@ const handlers: Record<Exclude<ApiAction, 'login'>, Handler> = {
     readActivity(groupCtx(p.groupId, user.email).ss, Math.min(Number(p.limit) || 200, 1000)),
   uploadReceipt,
   getReceipt,
+  updateProfile,
+  setMemberNickname,
 };
 
 function login(payload: { idToken: string }) {
   const user = verifyGoogleIdToken(payload?.idToken);
   upsertUser(user);
-  return { sessionToken: issueSession(user), user, ownerEmail: optionalProp('OWNER_EMAIL') };
+  return { sessionToken: issueSession(user), user: withProfileName(user), ownerEmail: optionalProp('OWNER_EMAIL') };
 }
 
 function respond(body: ApiResponse<unknown>) {
@@ -60,7 +73,8 @@ export function doPost(e: GoogleAppsScript.Events.DoPost) {
     if (action === 'login') return respond({ ok: true, data: login(body.payload as { idToken: string }) });
     const handler = handlers[action as Exclude<ApiAction, 'login'>];
     if (!handler) throw new ApiError('INVALID', `Unknown action "${String(body.action)}"`);
-    const user = verifySession(body.token);
+    // The session carries the Google name; apply the name chosen in FairShare.
+    const user = withProfileName(verifySession(body.token));
     return respond({ ok: true, data: handler(user, body.payload ?? {}) });
   } catch (err) {
     if (err instanceof ApiError) return respond({ ok: false, error: { code: err.code, message: err.message } });

@@ -1,7 +1,7 @@
 import { CURRENCIES } from '../../shared/money';
 import type { ApiActions, GroupSummary, User } from '../../shared/types';
 import { newId, nowIso, withLock } from './config';
-import { buildDetail, cachedDetail, finishWrite, GroupCtx, groupCtx, syncMembersTab } from './detail';
+import { buildDetail, cachedDetail, finishWrite, GroupCtx, groupCtx, nameResolver, syncMembersTab } from './detail';
 import { ApiError, invalid } from './errors';
 import { createGroupSpreadsheet, logActivity } from './groupSheet';
 import { notifyAdded } from './mail';
@@ -43,7 +43,7 @@ export function listGroups(user: User): GroupSummary[] {
         memberCount: members.length,
         memberPreview: members.slice(0, 5).map((x) => ({
           email: x.email,
-          displayName: users[x.email]?.name || x.email.split('@')[0],
+          displayName: x.nickname || users[x.email]?.name || x.email.split('@')[0],
           pictureUrl: users[x.email]?.pictureUrl,
         })),
         myNetMinor: m.netMinor,
@@ -89,6 +89,7 @@ export function createGroup(user: User, req: Req<'createGroup'>) {
         addedAt: now,
         active: true,
         netMinor: 0,
+        nickname: '',
       }),
     );
 
@@ -164,6 +165,7 @@ export function addMember(user: User, req: Req<'addMember'>) {
         addedAt: nowIso(),
         active: true,
         netMinor: 0,
+        nickname: '',
       };
       insertMembership(m);
       ctx.memberships = groupMemberships(ctx.group.groupId);
@@ -223,5 +225,30 @@ export function deleteGroup(user: User, req: Req<'deleteGroup'>) {
       console.warn(`Could not trash files for deleted group ${ctx.group.groupId}`, e instanceof Error ? e.message : String(e));
     }
     return null;
+  });
+}
+
+/** Owner-only: rename a member inside this group. An empty nickname restores their own name. */
+export function setMemberNickname(user: User, req: Req<'setMemberNickname'>) {
+  const target = email(req.email);
+  const nickname = text(req.nickname ?? '', 'Name', 0, 40);
+  return withLock(() => {
+    const ctx = groupCtx(req.groupId, user.email);
+    if (ctx.me.role !== 'owner') throw new ApiError('FORBIDDEN', "Only the group owner can change members' names");
+    const m = ctx.memberships.find((x) => x.email === target);
+    if (!m) throw new ApiError('NOT_FOUND', `${target} is not in this group`);
+    if (m.nickname === nickname) return finishWrite(ctx);
+    const before = nameResolver(ctx.memberships)(target);
+    updateMembership(m, { nickname });
+    syncMembersTab(ctx);
+    logActivity(
+      ctx.ss,
+      user.email,
+      'rename',
+      'member',
+      target,
+      nickname ? `${user.name} renamed ${before} to "${nickname}"` : `${user.name} reset the name of ${before}`,
+    );
+    return finishWrite(ctx);
   });
 }

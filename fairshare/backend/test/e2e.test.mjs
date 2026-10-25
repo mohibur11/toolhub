@@ -325,6 +325,63 @@ test('cache returns consistent data', () => {
   assert.deepEqual(d1, d2);
 });
 
+test('names: own FairShare name, owner nicknames, precedence', () => {
+  const member = (d, email) => d.members.find((m) => m.email === email);
+  ok(gas.call('getGroup', { groupId }, A)); // warm the cache so renames must invalidate it
+
+  let r = ok(gas.call('updateProfile', { name: '  Bobby  ' }, B));
+  assert.equal(r.user.name, 'Bobby');
+  assert.equal(r.user.googleName, 'Bob');
+  assert.equal(ok(gas.call('me', {}, B)).user.name, 'Bobby');
+  let d = ok(gas.call('getGroup', { groupId }, A));
+  assert.equal(member(d, 'bob@gmail.com').displayName, 'Bobby');
+  assert.equal(ok(gas.call('listGroups', {}, A))[0].memberPreview.find((p) => p.email === 'bob@gmail.com').displayName, 'Bobby');
+  err(gas.call('updateProfile', { name: 'x'.repeat(41) }, B), 'INVALID');
+
+  // only the owner can set nicknames
+  err(gas.call('setMemberNickname', { groupId, email: 'carol@gmail.com', nickname: 'CC' }, B), 'FORBIDDEN');
+  err(gas.call('setMemberNickname', { groupId, email: 'nobody@gmail.com', nickname: 'N' }, A), 'NOT_FOUND');
+  d = ok(gas.call('setMemberNickname', { groupId, email: 'bob@gmail.com', nickname: 'Bob (cousin)' }, A));
+  assert.equal(member(d, 'bob@gmail.com').displayName, 'Bob (cousin)');
+  assert.equal(member(d, 'bob@gmail.com').profileName, 'Bobby');
+  assert.match(ok(gas.call('getActivity', { groupId, limit: 1 }, C))[0].summary, /Alice renamed Bobby to "Bob \(cousin\)"/);
+  // group sheet mirror shows the nickname
+  const sheet = [...gas.files.values()].find((f) => f.isSheet && f.parent === gas.props.get('GROUPS_FOLDER_ID'));
+  const rows = gas.spreadsheets.get(sheet.id).getSheetByName('Members').rows;
+  assert.ok(rows.some((row) => row[0] === 'bob@gmail.com' && row[1] === 'Bob (cousin)'));
+
+  // the owner's nickname wins inside the group even after Bob renames himself
+  ok(gas.call('updateProfile', { name: 'Robert' }, B));
+  d = ok(gas.call('getGroup', { groupId }, C));
+  assert.equal(member(d, 'bob@gmail.com').displayName, 'Bob (cousin)');
+  assert.equal(member(d, 'bob@gmail.com').profileName, 'Robert');
+
+  // the owner can rename themselves in the group too; clearing restores the default
+  d = ok(gas.call('setMemberNickname', { groupId, email: 'alice@gmail.com', nickname: 'Ali' }, A));
+  assert.equal(member(d, 'alice@gmail.com').displayName, 'Ali');
+  d = ok(gas.call('setMemberNickname', { groupId, email: 'bob@gmail.com', nickname: '' }, A));
+  assert.equal(member(d, 'bob@gmail.com').displayName, 'Robert');
+  r = ok(gas.call('updateProfile', { name: '' }, B));
+  assert.equal(r.user.name, 'Bob');
+  d = ok(gas.call('getGroup', { groupId }, A));
+  assert.equal(member(d, 'bob@gmail.com').displayName, 'Bob');
+  ok(gas.call('setMemberNickname', { groupId, email: 'alice@gmail.com', nickname: '' }, A));
+});
+
+test('registry created before the naming feature is migrated automatically', () => {
+  const reg = gas.spreadsheets.get(gas.props.get('REGISTRY_SHEET_ID'));
+  // simulate an old registry: drop the new trailing columns
+  reg.getSheetByName('Users').rows.forEach((row) => (row.length = 5));
+  reg.getSheetByName('Memberships').rows.forEach((row) => (row.length = 7));
+  gas.props.set('REGISTRY_SCHEMA', '1');
+  const r = ok(gas.call('updateProfile', { name: 'Carol C' }, C));
+  assert.equal(r.user.name, 'Carol C');
+  assert.equal(reg.getSheetByName('Users').rows[0][5], 'customName');
+  assert.equal(reg.getSheetByName('Memberships').rows[0][7], 'nickname');
+  assert.equal(gas.props.get('REGISTRY_SCHEMA'), '2');
+  ok(gas.call('updateProfile', { name: '' }, C));
+});
+
 test('weekly backup copies registry + groups and keeps the last 8', () => {
   const backupRoot = gas.props.get('BACKUP_FOLDER_ID');
   const msg = gas.weeklyBackup();

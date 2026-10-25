@@ -20,6 +20,7 @@ Live at `https://mohibur11.github.io/toolhub/tools/fairshare/` once configured.
 - Group owners can **archive** or **permanently delete** a group.
 - **Weekly automatic backup** of all data (last 8 kept).
 - **Invite email** when someone adds you to a group.
+- **Custom names:** anyone can change their own FairShare name (account menu), and a group owner can rename any member inside their group. Inside a group, the owner's name for a member is shown first, then the member's own name, then their Google name, then their email.
 
 ## How it works
 

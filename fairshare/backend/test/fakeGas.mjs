@@ -271,9 +271,11 @@ export function createFakeGas({ clientId = 'test-client-id', owner = 'owner@gmai
     files,
     triggers,
     newSpreadsheet,
-    setup: () => vm.runInContext('setup()', context),
-    weeklyBackup: () => vm.runInContext('weeklyBackup()', context),
+    // Like Apps Script, every invocation starts from freshly loaded code (no module state carried over).
+    setup: () => (vm.runInContext(code, context), vm.runInContext('setup()', context)),
+    weeklyBackup: () => (vm.runInContext(code, context), vm.runInContext('weeklyBackup()', context)),
     call(action, payload = {}, token) {
+      vm.runInContext(code, context);
       const res = vm.runInContext('doPost', context)({ postData: { contents: JSON.stringify({ action, token, payload }) } });
       return JSON.parse(res.content);
     },

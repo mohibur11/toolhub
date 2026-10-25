@@ -1,7 +1,7 @@
 import { deriveGroupState } from '../../shared/settle';
 import type { GroupDetail, Member } from '../../shared/types';
 import { openGroupSheet, readExpenses, readPayments } from './groupSheet';
-import { GroupRow, MembershipRow, requireMember, saveDerived, usersByEmail } from './registry';
+import { GroupRow, MembershipRow, namesVersion, requireMember, saveDerived, usersByEmail } from './registry';
 import { getSheet } from './sheets';
 
 type Spreadsheet = GoogleAppsScript.Spreadsheet.Spreadsheet;
@@ -20,16 +20,24 @@ export function groupCtx(groupId: string, actor: string): GroupCtx {
   return { actor, group, memberships, me, ss: openGroupSheet(group.sheetId) };
 }
 
-export function nameResolver() {
+/**
+ * Name shown inside a group, in priority order: the group owner's nickname for the member,
+ * the member's own FairShare name, their Google name, then the part of the email before "@".
+ */
+export function nameResolver(memberships: MembershipRow[] = []) {
   const users = usersByEmail();
-  return (email: string) => users[email]?.name || email.split('@')[0];
+  const nicknames = new Map(memberships.filter((m) => m.nickname).map((m) => [m.email, m.nickname]));
+  return (email: string) => nicknames.get(email) || users[email]?.name || email.split('@')[0];
 }
 
 export function toMembers(memberships: MembershipRow[]): Member[] {
   const users = usersByEmail();
+  const nameOf = nameResolver(memberships);
   return memberships.map((m) => ({
     email: m.email,
-    displayName: users[m.email]?.name || m.email.split('@')[0],
+    displayName: nameOf(m.email),
+    profileName: users[m.email]?.name || m.email.split('@')[0],
+    nickname: m.nickname || undefined,
     pictureUrl: users[m.email]?.pictureUrl,
     role: m.role,
     active: m.active,
@@ -62,7 +70,7 @@ export function buildDetail(group: GroupRow, memberships: MembershipRow[], ss: S
   };
 }
 
-const cacheKey = (groupId: string, version: number) => `gd:${groupId}:${version}`;
+const cacheKey = (groupId: string, version: number) => `gd:${groupId}:${version}:n${namesVersion()}`;
 
 function cachePut(d: GroupDetail) {
   try {

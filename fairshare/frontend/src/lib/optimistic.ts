@@ -67,4 +67,10 @@ export const optimistic: Partial<Record<keyof ApiActions, (d: GroupDetail, p: ne
       ...(p.simplifyDebts !== undefined && { simplifyDebts: p.simplifyDebts }),
     },
   }),
+  setMemberNickname: (d, p: P<'setMemberNickname'>) => ({
+    ...d,
+    members: d.members.map((m) =>
+      m.email === p.email ? { ...m, nickname: p.nickname || undefined, displayName: p.nickname || m.profileName } : m,
+    ),
+  }),
 };

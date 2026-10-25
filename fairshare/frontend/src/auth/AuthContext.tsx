@@ -11,6 +11,8 @@ interface AuthState {
   ownerEmail: string;
   signInWithGoogleCredential: (idToken: string) => Promise<void>;
   signOut: () => void;
+  /** Replace the signed-in user's profile (e.g. after changing their name). */
+  updateUser: (u: User) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -77,9 +79,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     remember(r.user, r.ownerEmail);
   }, []);
 
+  const updateUser = useCallback((u: User) => {
+    setUser(u);
+    try {
+      localStorage.setItem(USER_KEY, JSON.stringify(u));
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const value = useMemo(
-    () => ({ status, user, ownerEmail, signInWithGoogleCredential, signOut }),
-    [status, user, ownerEmail, signInWithGoogleCredential, signOut],
+    () => ({ status, user, ownerEmail, signInWithGoogleCredential, signOut, updateUser }),
+    [status, user, ownerEmail, signInWithGoogleCredential, signOut, updateUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

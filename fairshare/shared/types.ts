@@ -22,7 +22,12 @@ export interface Payer {
 
 export interface Member {
   email: string;
+  /** Name shown in this group: owner's nickname, else profileName. */
   displayName: string;
+  /** The member's own FairShare name (or Google name / email prefix). */
+  profileName: string;
+  /** Name the group owner set for this member in this group, if any. */
+  nickname?: string;
   pictureUrl?: string;
   role: 'owner' | 'member';
   active: boolean;
@@ -113,7 +118,10 @@ export interface GroupSummary {
 
 export interface User {
   email: string;
+  /** Effective name: chosen in FairShare, else from Google. */
   name: string;
+  /** Name from the Google account (shown as the default when editing). */
+  googleName?: string;
   pictureUrl?: string;
 }
 
@@ -147,6 +155,10 @@ export interface ApiActions {
     res: GroupDetail;
   };
   deleteGroup: { req: { groupId: string; confirmName: string }; res: null };
+  /** Set your own FairShare name everywhere; '' resets to your Google name. */
+  updateProfile: { req: { name: string }; res: { user: User } };
+  /** Group owner renames a member inside this group only; '' removes the nickname. */
+  setMemberNickname: { req: { groupId: string; email: string; nickname: string }; res: GroupDetail };
   updateGroup: {
     req: { groupId: string; name?: string; description?: string; simplifyDebts?: boolean };
     res: GroupDetail;

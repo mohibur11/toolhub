@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { deriveGroupState } from '@shared/settle';
 import type { ApiActions, GroupDetail } from '@shared/types';
+import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../components/Toast';
 import { api } from './client';
 import { optimistic } from '../lib/optimistic';
@@ -101,6 +102,24 @@ export function useDeleteGroup(groupId: string) {
       qc.removeQueries({ queryKey: keys.group(groupId) });
       qc.removeQueries({ queryKey: keys.activity(groupId) });
       toast.success('Group deleted');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+/** Change your own FairShare name. Names appear in every group, so all group data is refetched. */
+export function useUpdateProfile() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { updateUser } = useAuth();
+  return useMutation({
+    mutationFn: (name: string) => api('updateProfile', { name }),
+    onSuccess: ({ user }) => {
+      updateUser(user);
+      qc.invalidateQueries({ queryKey: ['group'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
+      qc.invalidateQueries({ queryKey: keys.groups });
+      toast.success('Name updated');
     },
     onError: (err: Error) => toast.error(err.message),
   });

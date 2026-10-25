@@ -19,7 +19,7 @@ function findExpense(ctx: GroupCtx, expenseId: string) {
 }
 
 function saveExpenseRow(ctx: GroupCtx, e: Expense, rec?: Parameters<typeof updateRecord>[1]) {
-  const nameOf = nameResolver();
+  const nameOf = nameResolver(ctx.memberships);
   const record = expenseToRecord(e, ctx.group.currency, describeSplit(e.splitMethod, e.shares, nameOf), nameOf);
   const sheet = getSheet(ctx.ss, 'Expenses');
   if (rec) updateRecord(sheet, rec, record);
@@ -96,7 +96,7 @@ export function addPayment(user: User, req: Req<'addPayment'>) {
       getSheet(ctx.ss, 'Payments'),
       paymentToRecord({ id, ...p, createdBy: user.email, createdAt: nowIso(), deleted: false }, ctx.group.currency),
     );
-    const nameOf = nameResolver();
+    const nameOf = nameResolver(ctx.memberships);
     logActivity(ctx.ss, user.email, 'add', 'payment', id, `${nameOf(p.from)} paid ${nameOf(p.to)} ${money(ctx, p.amountMinor)}`);
     return finishWrite(ctx);
   });
@@ -109,7 +109,7 @@ export function deletePayment(user: User, req: Req<'deletePayment'>) {
     if (!p) throw new ApiError('NOT_FOUND', 'Payment not found');
     if (!p.deleted) {
       updateRecord(getSheet(ctx.ss, 'Payments'), p._rec, { deleted: true });
-      const nameOf = nameResolver();
+      const nameOf = nameResolver(ctx.memberships);
       logActivity(
         ctx.ss,
         user.email,

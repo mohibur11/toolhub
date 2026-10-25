@@ -5,7 +5,8 @@ import { ApiError } from './errors';
 import { appendRecord, bool, deleteRecords, ensureSheet, getSheet, num, readRecords, Rec, str, updateRecord } from './sheets';
 
 export const REGISTRY_TABS = {
-  Users: ['email', 'name', 'pictureUrl', 'createdAt', 'lastSeenAt'],
+  // name = from Google (refreshed at each login); customName = chosen in FairShare (wins when set)
+  Users: ['email', 'name', 'pictureUrl', 'createdAt', 'lastSeenAt', 'customName'],
   Groups: [
     'groupId',
     'name',
@@ -19,8 +20,12 @@ export const REGISTRY_TABS = {
     'version',
     'lastActivityAt',
   ],
-  Memberships: ['groupId', 'email', 'role', 'addedBy', 'addedAt', 'active', 'netMinor'],
+  // nickname = name the group owner gave this member, shown only inside that group
+  Memberships: ['groupId', 'email', 'role', 'addedBy', 'addedAt', 'active', 'netMinor', 'nickname'],
 };
+
+/** Bump when REGISTRY_TABS gains columns; the registry is migrated automatically on the next request. */
+const REGISTRY_SCHEMA = '2';
 
 export interface GroupRow {
   groupId: string;
@@ -45,17 +50,37 @@ export interface MembershipRow {
   addedAt: string;
   active: boolean;
   netMinor: number;
+  nickname: string;
   _rec: Rec;
 }
 
 let registrySs: GoogleAppsScript.Spreadsheet.Spreadsheet | null = null;
 export function registry() {
-  if (!registrySs) registrySs = SpreadsheetApp.openById(prop('REGISTRY_SHEET_ID'));
+  if (!registrySs) {
+    registrySs = SpreadsheetApp.openById(prop('REGISTRY_SHEET_ID'));
+    const props = PropertiesService.getScriptProperties();
+    if (props.getProperty('REGISTRY_SCHEMA') !== REGISTRY_SCHEMA) {
+      ensureRegistryTabs(registrySs);
+      props.setProperty('REGISTRY_SCHEMA', REGISTRY_SCHEMA);
+    }
+  }
   return registrySs;
 }
 
 export function ensureRegistryTabs(ss: GoogleAppsScript.Spreadsheet.Spreadsheet) {
   Object.entries(REGISTRY_TABS).forEach(([name, headers]) => ensureSheet(ss, name, headers));
+}
+
+/**
+ * Display names are baked into cached group details, so renaming a user invalidates them all
+ * by bumping this counter (part of every cache key).
+ */
+export function namesVersion(): string {
+  return PropertiesService.getScriptProperties().getProperty('NAMES_VERSION') ?? '0';
+}
+
+function bumpNamesVersion(): void {
+  PropertiesService.getScriptProperties().setProperty('NAMES_VERSION', String(Number(namesVersion()) + 1));
 }
 
 const toGroup = (r: Rec): GroupRow => ({
@@ -81,6 +106,7 @@ const toMembership = (r: Rec): MembershipRow => ({
   addedAt: str(r.addedAt),
   active: bool(r.active),
   netMinor: num(r.netMinor),
+  nickname: str(r.nickname),
   _rec: r,
 });
 
@@ -95,17 +121,49 @@ export function upsertUser(user: User): void {
   } else {
     appendRecord(sheet, { email: user.email, name: user.name, pictureUrl: user.pictureUrl ?? '', createdAt: now, lastSeenAt: now });
   }
+  usersMemo = null;
 }
 
-let usersMemo: Record<string, { name: string; pictureUrl?: string }> | null = null;
+export interface UserInfo {
+  /** Effective name: the user's custom FairShare name, else their Google name. */
+  name: string;
+  googleName: string;
+  customName: string;
+  pictureUrl?: string;
+}
 
-export function usersByEmail(): Record<string, { name: string; pictureUrl?: string }> {
+let usersMemo: Record<string, UserInfo> | null = null;
+
+export function usersByEmail(): Record<string, UserInfo> {
   if (usersMemo) return usersMemo;
-  const out: Record<string, { name: string; pictureUrl?: string }> = {};
+  const out: Record<string, UserInfo> = {};
   readRecords(getSheet(registry(), 'Users')).forEach((r) => {
-    out[str(r.email).toLowerCase()] = { name: str(r.name), pictureUrl: str(r.pictureUrl) || undefined };
+    const googleName = str(r.name);
+    const customName = str(r.customName);
+    out[str(r.email).toLowerCase()] = {
+      name: customName || googleName,
+      googleName,
+      customName,
+      pictureUrl: str(r.pictureUrl) || undefined,
+    };
   });
   return (usersMemo = out);
+}
+
+/** Set (or clear with '') the name a user chose for themselves in FairShare. */
+export function setCustomName(email: string, customName: string): void {
+  const sheet = getSheet(registry(), 'Users');
+  const rec = readRecords(sheet).find((r) => str(r.email).toLowerCase() === email);
+  if (!rec) throw new ApiError('NOT_FOUND', 'User not found; please sign in again');
+  updateRecord(sheet, rec, { customName });
+  usersMemo = null;
+  bumpNamesVersion();
+}
+
+/** The signed-in user with their FairShare name applied. */
+export function withProfileName(user: User): User {
+  const info = usersByEmail()[user.email];
+  return info ? { ...user, name: info.name, googleName: info.googleName } : user;
 }
 
 // ---- groups ----
