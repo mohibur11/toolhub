@@ -46,6 +46,9 @@ Tools are not managed from the admin panel — they're defined in code so the ho
 2. Add an entry to the `TOOLS` array in **`js/tools.js`** (icon, name, description, `url: "tools/unit-converter/"`).
 3. Push. It appears on the homepage.
 
+### Built tools (FairShare)
+FairShare (shared-expense splitter) is a React app, so it has a build step. Its source lives in **`fairshare/`**; `npm run build` there writes the static site into `tools/fairshare/`, which is committed so Pages can serve it without CI. Its backend is a Google Apps Script web app backed by Google Sheets, and its two config values live in **`js/fairshare-config.js`**. Setup and workflow: **`fairshare/README.md`**.
+
 ## Editing the calculator's fixed structure
 The tariff **structure** (which voltage levels, consumer classes, and slab bands exist) is defined in `js/dpdc-tariff.js`. Add a new consumer class there; its default numbers show up in the admin editor, where you can then tune them. Changing a *rate* is admin; changing the *structure* is code.
 

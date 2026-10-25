@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.local
+frontend/.env.local
+backend/.clasp.json
+.clasprc.json
+*.log

@@ -16,4 +16,10 @@ export const TOOLS = [
     description: "Bangladesh individual income tax calculator — full return computation for AY 2026–27 and 2025–26.",
     url: "tools/kor-hishab/",
   },
+  {
+    icon: "🤝",
+    name: "FairShare",
+    description: "Split trip and event expenses with friends, then settle up with the fewest payments. Data lives in your own Google Sheet.",
+    url: "tools/fairshare/",
+  },
 ];
