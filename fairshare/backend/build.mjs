@@ -1,9 +1,15 @@
 // Bundles src/ (plus ../shared) into a single Apps Script file at dist/Code.js.
 // Apps Script only sees top-level function declarations, so the footer re-exports the entry points.
 import { build } from 'esbuild';
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 
 mkdirSync('dist', { recursive: true });
+
+// `clasp create --rootDir dist` (clasp 2.5) writes .clasp.json inside dist/; clasp push expects it here.
+if (existsSync('dist/.clasp.json') && !existsSync('.clasp.json')) {
+  renameSync('dist/.clasp.json', '.clasp.json');
+  console.log('Moved dist/.clasp.json to backend/.clasp.json');
+}
 
 await build({
   entryPoints: ['src/main.ts'],
