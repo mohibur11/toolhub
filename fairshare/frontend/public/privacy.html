@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy · FairShare</title>
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --ink: #0f172a;
+        --muted: #475569;
+        --line: #e2e8f0;
+        --accent: #059669;
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #020617;
+          --card: #0f172a;
+          --ink: #e2e8f0;
+          --muted: #94a3b8;
+          --line: #1e293b;
+          --accent: #34d399;
+          color-scheme: dark;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.65 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 32px 16px 64px;
+      }
+      article {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 28px 24px;
+      }
+      h1 { margin: 0 0 4px; font-size: 1.75rem; }
+      h2 { margin: 28px 0 8px; font-size: 1.15rem; }
+      p, li { color: var(--muted); }
+      strong { color: var(--ink); }
+      a { color: var(--accent); }
+      .meta { font-size: 0.875rem; margin-bottom: 20px; }
+      header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+      header img { width: 40px; height: 40px; border-radius: 10px; }
+      header a { font-weight: 600; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="./icon.svg" alt="" />
+        <a href="./">FairShare</a>
+      </header>
+      <article>
+        <h1>Privacy Policy</h1>
+        <p class="meta">Last updated: 25 October 2026</p>
+
+        <p>
+          FairShare is a free tool for tracking shared expenses within groups of friends. It is a personal, non-commercial
+          project published on Toolhub. This page explains what data FairShare handles and how.
+        </p>
+
+        <h2>What we collect</h2>
+        <ul>
+          <li>
+            <strong>From Google sign-in:</strong> your name, email address and profile photo. FairShare requests no other
+            Google permissions. It cannot read your Gmail, Drive, contacts or any other Google data.
+          </li>
+          <li>
+            <strong>What you and your group members enter:</strong> group names, member email addresses, expenses (descriptions,
+            amounts, dates, categories, notes, how they are split), payments between members and optional receipt photos.
+          </li>
+          <li>
+            <strong>Activity history:</strong> a log of who added, edited or deleted what in each group, so members can see changes.
+          </li>
+        </ul>
+
+        <h2>Where it is stored</h2>
+        <p>
+          All data is stored in Google Sheets and Google Drive belonging to the Google account that runs FairShare (the
+          "owner account"), and is processed by a Google Apps Script program running under that account. Google's own
+          privacy policy applies to that storage.
+        </p>
+
+        <h2>Who can see your data</h2>
+        <ul>
+          <li><strong>Members of your group</strong> can see that group's members, expenses, payments, receipts and activity in the app.</li>
+          <li><strong>The owner account</strong> that runs FairShare can technically access all stored data.</li>
+          <li>People outside your group cannot see your group's data in the app.</li>
+        </ul>
+
+        <h2>What we don't do</h2>
+        <ul>
+          <li>No ads, no tracking or analytics scripts, no selling or sharing of data with third parties.</li>
+          <li>Your data is used only to provide FairShare's features.</li>
+        </ul>
+
+        <h2>Data on your device</h2>
+        <p>
+          FairShare keeps a sign-in session token and your basic profile in your browser's local storage so you stay signed
+          in (sessions last up to 30 days). Signing out removes them. The app may also be cached on your device so it loads
+          quickly.
+        </p>
+
+        <h2>Retention and deletion</h2>
+        <ul>
+          <li>A group's owner can permanently delete the group from its settings. This removes its expenses, payments and receipts.</li>
+          <li>Deleted files are purged from Google Drive trash within 30 days.</li>
+          <li>Weekly backups are kept for about 8 weeks, so deleted data fully disappears within that time.</li>
+          <li>Any member with a settled balance can leave a group.</li>
+          <li>To have your account details (name, email, photo) removed, contact us using the link below.</li>
+        </ul>
+
+        <h2>Children</h2>
+        <p>FairShare is not directed at children under 13.</p>
+
+        <h2>Changes</h2>
+        <p>If this policy changes, the updated version will be posted on this page with a new date.</p>
+
+        <h2>Contact</h2>
+        <p>
+          For questions or deletion requests, open an issue at
+          <a href="https://github.com/mohibur11/toolhub/issues" rel="noopener">github.com/mohibur11/toolhub/issues</a>.
+        </p>
+      </article>
+    </main>
+  </body>
+</html>

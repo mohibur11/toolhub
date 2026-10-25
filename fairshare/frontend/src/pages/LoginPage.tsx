@@ -67,6 +67,10 @@ export default function LoginPage() {
       </p>
       <p className="mt-4 text-xs text-slate-400">
         Free forever · no ads ·{' '}
+        <a href="./privacy.html" className="underline hover:text-slate-600">
+          Privacy
+        </a>{' '}
+        ·{' '}
         <a href={TOOLHUB_URL} className="underline hover:text-slate-600">
           more tools on Toolhub
         </a>
