@@ -4,7 +4,9 @@
 // Edit and push — no rebuild needed.
 window.FAIRSHARE_CONFIG = {
   // Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client ID (Web)
-  googleClientId: "PASTE_YOUR_GOOGLE_CLIENT_ID",
+  googleClientId:
+    "758605914606-fu4tss4o1fqijep0b1spvispfhgemkhm.apps.googleusercontent.com",
   // Apps Script → Deploy → Manage deployments → Web app URL (ends with /exec)
-  apiUrl: "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL",
+  apiUrl:
+    "https://script.google.com/macros/s/AKfycbxwEUHaAwd6a3PL8fnjVm8bad5OZgombIzr_JxpkvpCXTX6LylLEzVHjXpMuxJt_s5sVw/exec",
 };
