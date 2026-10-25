@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { GroupDetail } from '@shared/types';
-import { useGroup, useGroupWrite } from '../api/hooks';
+import { useDeleteGroup, useGroup, useGroupWrite } from '../api/hooks';
 import { useMe } from '../auth/AuthContext';
 import { useToast } from '../components/Toast';
 import { AppBar, Avatar, Balance, ErrorState, Icon, ListSkeleton, Page, Spinner, Toggle } from '../components/ui';
@@ -28,6 +28,7 @@ function Settings({ d }: { d: GroupDetail }) {
   const addMember = useGroupWrite(d.group.id, 'addMember');
   const removeMember = useGroupWrite(d.group.id, 'removeMember');
   const archive = useGroupWrite(d.group.id, 'archiveGroup');
+  const deleteGroup = useDeleteGroup(d.group.id);
   const [name, setName] = useState(d.group.name);
   const [description, setDescription] = useState(d.group.description);
   const [newEmail, setNewEmail] = useState('');
@@ -161,21 +162,32 @@ function Settings({ d }: { d: GroupDetail }) {
           >
             <Icon name="download" className="h-5 w-5 text-slate-400" /> Export as CSV
           </button>
-          <a href={d.group.sheetUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 px-4 py-3 text-sm">
-            <Icon name="external" className="h-5 w-5 text-slate-400" /> Open the Google Sheet
-          </a>
         </div>
-        <p className="mt-2 px-1 text-xs text-slate-500">Edit expenses in the app, not directly in the sheet, so balances stay correct.</p>
+        <p className="mt-2 px-1 text-xs text-slate-500">Download a copy of every expense and payment, with each member's balance.</p>
       </section>
 
       {isOwner && (
-        <section>
+        <section className="space-y-3">
+          <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Owner actions</h2>
           <button
             className="btn-secondary w-full"
             disabled={archive.isPending}
             onClick={() => archive.mutate({ archived: !d.group.archived }, { onSuccess: () => toast.success(d.group.archived ? 'Group restored' : 'Group archived') })}
           >
             {d.group.archived ? 'Unarchive group' : 'Archive group'}
+          </button>
+          <button
+            className="btn-danger w-full"
+            disabled={deleteGroup.isPending}
+            onClick={() => {
+              const typed = prompt(
+                `This permanently deletes "${d.group.name}" for everyone: all expenses, payments and receipts.\n\nTip: export a CSV first.\n\nType the group name to confirm:`,
+              );
+              if (typed === null) return;
+              deleteGroup.mutate(typed, { onSuccess: () => navigate('/', { replace: true }) });
+            }}
+          >
+            {deleteGroup.isPending ? <Spinner className="h-4 w-4" /> : <Icon name="trash" className="h-4 w-4" />} Delete group
           </button>
         </section>
       )}

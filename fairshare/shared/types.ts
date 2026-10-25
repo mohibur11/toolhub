@@ -86,7 +86,6 @@ export interface GroupInfo {
   createdAt: string;
   simplifyDebts: boolean;
   archived: boolean;
-  sheetUrl: string;
   version: number;
 }
 
@@ -144,9 +143,10 @@ export interface ApiActions {
   me: { req: Record<string, never>; res: { user: User; ownerEmail: string } };
   listGroups: { req: Record<string, never>; res: GroupSummary[] };
   createGroup: {
-    req: { name: string; description: string; currency: string; sheetUrl: string; memberEmails: string[] };
+    req: { name: string; description: string; currency: string; memberEmails: string[] };
     res: GroupDetail;
   };
+  deleteGroup: { req: { groupId: string; confirmName: string }; res: null };
   updateGroup: {
     req: { groupId: string; name?: string; description?: string; simplifyDebts?: boolean };
     res: GroupDetail;
@@ -177,7 +177,6 @@ export type ApiErrorCode =
   | 'NOT_FOUND'
   | 'INVALID'
   | 'CONFLICT'
-  | 'SHEET_ACCESS'
   | 'BUSY'
   | 'INTERNAL';
 

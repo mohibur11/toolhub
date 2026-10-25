@@ -64,6 +64,7 @@ class FakeSheet {
     }, 0);
   }
   getMaxRows() { return this.maxRows; }
+  deleteRow(r) { this.rows.splice(r - 1, 1); }
   insertRowsAfter(_after, n) { this.maxRows += n; }
   getRange(r, c, nr = 1, nc = 1) { return new FakeRange(this, r, c, nr, nc); }
   getDataRange() { return new FakeRange(this, 1, 1, Math.max(this.getLastRow(), 1), Math.max(this.getLastColumn(), 1)); }
@@ -94,12 +95,27 @@ export function createFakeGas({ clientId = 'test-client-id', owner = 'owner@gmai
   const files = new Map();
   const mails = [];
 
-  const newSpreadsheet = (name, { shared = true } = {}) => {
+  const triggers = [];
+  files.set('root', { id: 'root', name: 'My Drive', isFolder: true, parent: null, trashed: false });
+
+  const newSpreadsheet = (name, { shared = true, parent = 'root' } = {}) => {
     const id = 'sheet' + randomUUID().replace(/-/g, '');
     const ss = new FakeSpreadsheet(id, name);
     spreadsheets.set(id, ss);
+    files.set(id, { id, name, isSheet: true, parent, trashed: false });
     if (shared) accessible.add(id);
     return ss;
+  };
+
+  const copySpreadsheet = (src, name, parent) => {
+    const copy = newSpreadsheet(name, { parent });
+    copy.sheets = src.sheets.map((s) => {
+      const c = new FakeSheet(s.name);
+      c.rows = s.rows.map((r) => [...r]);
+      c.maxRows = s.maxRows;
+      return c;
+    });
+    return copy;
   };
 
   const toBytes = (s) => [...Buffer.from(s, 'utf8')].map((b) => (b > 127 ? b - 256 : b));
@@ -111,31 +127,59 @@ export function createFakeGas({ clientId = 'test-client-id', owner = 'owner@gmai
     getDataAsString: () => fromBytes(bytes).toString('utf8'),
   });
 
+  const iterator = (items) => {
+    let i = 0;
+    return { hasNext: () => i < items.length, next: () => items[i++] };
+  };
+  const children = (id, pred) => [...files.values()].filter((x) => x.parent === id && !x.trashed && pred(x));
+
   const folder = (id) => ({
     getId: () => id,
+    getName: () => files.get(id).name,
     getUrl: () => `https://drive.google.com/drive/folders/${id}`,
-    getFoldersByName: (n) => {
-      const f = [...files.values()].find((x) => x.isFolder && x.name === n && x.parent === id);
-      return { hasNext: () => !!f, next: () => folder(f.id) };
+    getFolders: () => iterator(children(id, (x) => x.isFolder).map((x) => folder(x.id))),
+    getFoldersByName: (n) => iterator(children(id, (x) => x.isFolder && x.name === n).map((x) => folder(x.id))),
+    setTrashed: (v) => {
+      files.get(id).trashed = v;
     },
     createFolder: (n) => {
       const fid = 'fold' + randomUUID();
-      files.set(fid, { id: fid, name: n, isFolder: true, parent: id });
+      files.set(fid, { id: fid, name: n, isFolder: true, parent: id, trashed: false });
       return folder(fid);
     },
     createFile: (blob) => {
       const fid = 'file' + randomUUID().replace(/-/g, '');
-      files.set(fid, { id: fid, name: blob.getName(), blob, parent: id });
+      files.set(fid, { id: fid, name: blob.getName(), blob, parent: id, trashed: false });
       return { getId: () => fid, setDescription() {} };
     },
   });
+
+  const driveFile = (id) => {
+    const f = files.get(id);
+    if (!f || f.isFolder) throw new Error('not found');
+    return {
+      getName: () => f.name,
+      getBlob: () => f.blob,
+      moveTo: (target) => {
+        f.parent = target.getId();
+      },
+      setTrashed: (v) => {
+        f.trashed = v;
+      },
+      makeCopy: (name, target) => {
+        if (!f.isSheet) throw new Error('copy only supported for spreadsheets');
+        const c = copySpreadsheet(spreadsheets.get(id), name, target.getId());
+        return { getId: () => c.getId() };
+      },
+    };
+  };
 
   const globals = {
     console,
     SpreadsheetApp: {
       create: (name) => newSpreadsheet(name),
       openById: (id) => {
-        if (!accessible.has(id)) throw new Error('No access');
+        if (!accessible.has(id) || files.get(id)?.trashed) throw new Error('No access');
         return spreadsheets.get(id);
       },
       flush() {},
@@ -182,16 +226,23 @@ export function createFakeGas({ clientId = 'test-client-id', owner = 'owner@gmai
       },
     },
     DriveApp: {
-      createFolder: (n) => {
-        const fid = 'fold' + randomUUID();
-        files.set(fid, { id: fid, name: n, isFolder: true, parent: null });
-        return folder(fid);
-      },
+      getRootFolder: () => folder('root'),
+      createFolder: (n) => folder('root').createFolder(n),
       getFolderById: (id) => folder(id),
-      getFileById: (id) => {
-        const f = files.get(id);
-        if (!f || f.isFolder) throw new Error('not found');
-        return { getName: () => f.name, getBlob: () => f.blob };
+      getFileById: (id) => driveFile(id),
+    },
+    ScriptApp: {
+      WeekDay: { SUNDAY: 'SUNDAY' },
+      getProjectTriggers: () => triggers.map((t) => ({ getHandlerFunction: () => t.fn })),
+      newTrigger: (fn) => {
+        const t = { fn };
+        const builder = {
+          timeBased: () => builder,
+          onWeekDay: (d) => ((t.day = d), builder),
+          atHour: (h) => ((t.hour = h), builder),
+          create: () => triggers.push(t),
+        };
+        return builder;
       },
     },
     MailApp: { sendEmail: (m) => mails.push(m) },
@@ -211,8 +262,11 @@ export function createFakeGas({ clientId = 'test-client-id', owner = 'owner@gmai
     accessible,
     props,
     mails,
+    files,
+    triggers,
     newSpreadsheet,
     setup: () => vm.runInContext('setup()', context),
+    weeklyBackup: () => vm.runInContext('weeklyBackup()', context),
     call(action, payload = {}, token) {
       const res = vm.runInContext('doPost', context)({ postData: { contents: JSON.stringify({ action, token, payload }) } });
       return JSON.parse(res.content);

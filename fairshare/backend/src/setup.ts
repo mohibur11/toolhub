@@ -1,26 +1,50 @@
 // Run once from the Apps Script editor (select "setup" -> Run). Safe to re-run.
+// Creates, in the owner's Drive:
+//   FairShare/
+//     FairShare Registry   (spreadsheet: users, groups, memberships)
+//     Groups/              (one spreadsheet per group, created by the app)
+//     Receipts/
+//     Backups/             (weekly snapshots, last 8 kept)
 import { ensureRegistryTabs } from './registry';
+import type { PropName } from './config';
 
 export function setup(): string {
   const props = PropertiesService.getScriptProperties();
   const log: string[] = [];
 
+  const folderProp = (name: PropName, title: string, parent: () => GoogleAppsScript.Drive.Folder) => {
+    let id = props.getProperty(name);
+    if (!id) {
+      const folder = parent().createFolder(title);
+      id = folder.getId();
+      props.setProperty(name, id);
+      log.push(`Created folder ${title}: ${folder.getUrl()}`);
+    }
+    return DriveApp.getFolderById(id);
+  };
+
+  const appFolder = folderProp('APP_FOLDER_ID', 'FairShare', () => DriveApp.getRootFolder());
+
   let registryId = props.getProperty('REGISTRY_SHEET_ID');
   if (!registryId) {
-    const ss = SpreadsheetApp.create('FairShare Registry');
-    registryId = ss.getId();
+    const created = SpreadsheetApp.create('FairShare Registry');
+    registryId = created.getId();
+    DriveApp.getFileById(registryId).moveTo(appFolder);
     props.setProperty('REGISTRY_SHEET_ID', registryId);
-    log.push(`Created registry sheet: ${ss.getUrl()}`);
+    log.push(`Created registry sheet: ${created.getUrl()}`);
   }
   const ss = SpreadsheetApp.openById(registryId);
   ensureRegistryTabs(ss);
   const blank = ss.getSheetByName('Sheet1');
   if (blank && blank.getLastRow() === 0) ss.deleteSheet(blank);
 
-  if (!props.getProperty('RECEIPTS_FOLDER_ID')) {
-    const folder = DriveApp.createFolder('FairShare Receipts');
-    props.setProperty('RECEIPTS_FOLDER_ID', folder.getId());
-    log.push(`Created receipts folder: ${folder.getUrl()}`);
+  folderProp('GROUPS_FOLDER_ID', 'Groups', () => appFolder);
+  folderProp('RECEIPTS_FOLDER_ID', 'Receipts', () => appFolder);
+  folderProp('BACKUP_FOLDER_ID', 'Backups', () => appFolder);
+
+  if (!ScriptApp.getProjectTriggers().some((t) => t.getHandlerFunction() === 'weeklyBackup')) {
+    ScriptApp.newTrigger('weeklyBackup').timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(3).create();
+    log.push('Scheduled weekly backup (Sundays, ~3 AM script time)');
   }
 
   if (!props.getProperty('SESSION_SECRET')) {
@@ -34,7 +58,7 @@ export function setup(): string {
   if (!props.getProperty('GOOGLE_CLIENT_ID'))
     log.push('ACTION NEEDED: add script property GOOGLE_CLIENT_ID (Project Settings -> Script properties)');
 
-  const msg = log.join('\n');
+  const msg = log.join('\n') || 'Everything is already set up.';
   console.log(msg);
   return msg;
 }

@@ -3,11 +3,13 @@ import type { ApiActions, GroupSummary, User } from '../../shared/types';
 import { newId, nowIso, withLock } from './config';
 import { buildDetail, cachedDetail, finishWrite, GroupCtx, groupCtx, syncMembersTab } from './detail';
 import { ApiError, invalid } from './errors';
-import { initGroupSheet, logActivity, openGroupSheet, parseSheetId } from './groupSheet';
+import { createGroupSpreadsheet, logActivity } from './groupSheet';
 import { notifyAdded } from './mail';
+import { trashGroupReceipts } from './receipts';
 import {
   allGroups,
   allMemberships,
+  deleteGroupRows,
   getGroup,
   groupMemberships,
   insertGroup,
@@ -57,16 +59,12 @@ export function createGroup(user: User, req: Req<'createGroup'>) {
   const name = text(req.name, 'Group name', 1, 60);
   const description = text(req.description ?? '', 'Description', 0, 300);
   if (!CURRENCIES.some((c) => c.code === req.currency)) invalid('Unsupported currency');
-  const sheetId = parseSheetId(req.sheetUrl);
   const others = [...new Set((req.memberEmails ?? []).map(email))].filter((e) => e !== user.email);
   if (others.length + 1 > MAX_MEMBERS) invalid(`A group can have at most ${MAX_MEMBERS} members`);
 
   return withLock(() => {
-    if (allGroups().some((g) => g.sheetId === sheetId))
-      throw new ApiError('CONFLICT', 'This sheet is already used by another group. Please use a new blank sheet.');
-    const ss = openGroupSheet(sheetId);
     const groupId = newId();
-    initGroupSheet(ss, groupId, name);
+    const ss = createGroupSpreadsheet(groupId, name);
 
     const now = nowIso();
     insertGroup({
@@ -74,7 +72,7 @@ export function createGroup(user: User, req: Req<'createGroup'>) {
       name,
       description,
       currency: req.currency,
-      sheetId,
+      sheetId: ss.getId(),
       createdBy: user.email,
       createdAt: now,
       simplifyDebts: true,
@@ -202,5 +200,28 @@ export function removeMember(user: User, req: Req<'removeMember'>) {
     );
     const after = finishWrite(ctx);
     return self ? null : after;
+  });
+}
+
+/**
+ * Permanently remove a group: its spreadsheet and receipts go to the owner's Drive trash
+ * (purged by Google after 30 days) and the group disappears from the registry.
+ * Owner only; the caller must type the group name to confirm.
+ */
+export function deleteGroup(user: User, req: Req<'deleteGroup'>) {
+  return withLock(() => {
+    const ctx = groupCtxLite(req.groupId, user.email);
+    if (ctx.me.role !== 'owner') throw new ApiError('FORBIDDEN', 'Only the group owner can delete the group');
+    if (String(req.confirmName ?? '').trim() !== ctx.group.name.trim())
+      invalid('Type the group name exactly to confirm deletion');
+    // Registry first: if trashing files fails afterwards, the worst case is an orphaned file, not a broken group.
+    deleteGroupRows(ctx.group.groupId);
+    try {
+      DriveApp.getFileById(ctx.group.sheetId).setTrashed(true);
+      trashGroupReceipts(ctx.group.groupId);
+    } catch (e) {
+      console.warn(`Could not trash files for deleted group ${ctx.group.groupId}`, e instanceof Error ? e.message : String(e));
+    }
+    return null;
   });
 }

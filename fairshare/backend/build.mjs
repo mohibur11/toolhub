@@ -18,6 +18,7 @@ await build({
       'function doGet(e) { return FairShare.doGet(e); }',
       'function doPost(e) { return FairShare.doPost(e); }',
       'function setup() { return FairShare.setup(); }',
+      'function weeklyBackup() { return FairShare.weeklyBackup(); }',
     ].join('\n'),
   },
 });

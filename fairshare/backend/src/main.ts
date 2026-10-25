@@ -6,12 +6,13 @@ import { optionalProp } from './config';
 import { ApiError } from './errors';
 import { addExpense, addPayment, deleteExpense, deletePayment, restoreExpense, updateExpense } from './expenses';
 import { readActivity } from './groupSheet';
-import { addMember, archiveGroup, createGroup, getGroupDetail, listGroups, removeMember, updateGroup } from './groups';
+import { addMember, archiveGroup, createGroup, deleteGroup, getGroupDetail, listGroups, removeMember, updateGroup } from './groups';
 import { getReceipt, uploadReceipt } from './receipts';
 import { groupCtx } from './detail';
 import { upsertUser } from './registry';
 
 export { setup } from './setup';
+export { weeklyBackup } from './backup';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Handler = (user: User, payload: any) => unknown;
@@ -22,6 +23,7 @@ const handlers: Record<Exclude<ApiAction, 'login'>, Handler> = {
   createGroup,
   updateGroup,
   archiveGroup,
+  deleteGroup,
   addMember,
   removeMember,
   getGroup: getGroupDetail,

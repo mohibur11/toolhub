@@ -1,7 +1,8 @@
-// Per-group spreadsheet (provided by the group creator). Holds the group's expenses, payments and log.
+// Per-group spreadsheet (created by the app in the owner's "FairShare Groups" folder).
+// Holds the group's expenses, payments and activity log.
 import { formatMoney, minorToInput } from '../../shared/money';
 import type { ActivityEntry, Expense, Payer, Payment, Share, SplitMethod } from '../../shared/types';
-import { nowIso, optionalProp } from './config';
+import { nowIso, prop } from './config';
 import { ApiError } from './errors';
 import { appendRecord, appendRecords, bool, ensureSheet, getSheet, json, num, readRecords, Rec, str } from './sheets';
 
@@ -36,35 +37,24 @@ export const GROUP_TABS = {
   Activity: ['ts', 'actor', 'action', 'entityType', 'entityId', 'summary', 'details'],
 };
 
-/** Accepts a full Google Sheets URL or a bare spreadsheet id. */
-export function parseSheetId(input: string): string {
-  const s = String(input || '').trim();
-  const m = s.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]{20,})/);
-  if (m) return m[1];
-  if (/^[a-zA-Z0-9_-]{20,}$/.test(s)) return s;
-  throw new ApiError('INVALID', 'That does not look like a Google Sheets link');
+/** Each group gets its own app-owned spreadsheet, so a group's reads stay small however many groups exist. */
+export function createGroupSpreadsheet(groupId: string, groupName: string): Spreadsheet {
+  const ss = SpreadsheetApp.create(`FairShare – ${groupName} (${groupId.slice(0, 8)})`);
+  DriveApp.getFileById(ss.getId()).moveTo(DriveApp.getFolderById(prop('GROUPS_FOLDER_ID')));
+  initGroupSheet(ss, groupId);
+  return ss;
 }
 
 export function openGroupSheet(sheetId: string): Spreadsheet {
   try {
     return SpreadsheetApp.openById(sheetId);
   } catch {
-    const owner = optionalProp('OWNER_EMAIL');
-    throw new ApiError(
-      'SHEET_ACCESS',
-      `FairShare can't open this sheet. Share it with ${owner || 'the FairShare account'} as Editor and try again.`,
-    );
+    throw new ApiError('INTERNAL', "This group's data could not be opened. Please contact the FairShare owner.");
   }
 }
 
-/** Create all tabs + headers. Refuses a sheet that already belongs to a different group. */
-export function initGroupSheet(ss: Spreadsheet, groupId: string, groupName: string): void {
-  const meta = ss.getSheetByName('Meta');
-  if (meta) {
-    const existing = readRecords(meta).find((r) => r.key === 'groupId');
-    if (existing && existing.value && existing.value !== groupId)
-      throw new ApiError('CONFLICT', 'This sheet is already used by another FairShare group. Please use a new blank sheet.');
-  }
+/** Create all tabs + headers. */
+function initGroupSheet(ss: Spreadsheet, groupId: string): void {
   Object.entries(GROUP_TABS).forEach(([name, headers]) => ensureSheet(ss, name, headers));
   const metaSheet = getSheet(ss, 'Meta');
   if (readRecords(metaSheet).length === 0) {
@@ -72,14 +62,13 @@ export function initGroupSheet(ss: Spreadsheet, groupId: string, groupName: stri
       { key: 'groupId', value: groupId },
       { key: 'schemaVersion', value: SCHEMA_VERSION },
       { key: 'createdAt', value: nowIso() },
-      { key: 'note', value: 'Managed by FairShare. Edit data through the app to keep balances correct.' },
+      { key: 'note', value: 'Managed by FairShare. Edit data through the app so balances stay correct.' },
     ]);
   }
-  // Drop the empty default tab and give untitled sheets a friendly name.
+  // Drop the empty default tab.
   ss.getSheets().forEach((sh) => {
     if (!(sh.getName() in GROUP_TABS) && sh.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(sh);
   });
-  if (/^Untitled spreadsheet$/i.test(ss.getName())) ss.rename(`FairShare – ${groupName}`);
 }
 
 // ---- parsing ----

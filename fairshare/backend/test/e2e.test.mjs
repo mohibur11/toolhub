@@ -36,18 +36,22 @@ test('auth', () => {
   assert.equal(ok(gas.call('me', {}, A)).user.email, 'alice@gmail.com');
 });
 
-test('create group validates sheet access', () => {
-  const unshared = gas.newSpreadsheet('Untitled spreadsheet', { shared: false });
-  const e = err(
-    gas.call('createGroup', { name: 'Trip', description: '', currency: 'BDT', sheetUrl: unshared.getUrl(), memberEmails: [] }, A),
-    'SHEET_ACCESS',
-  );
-  assert.match(e.message, /owner@gmail.com/);
-  err(gas.call('createGroup', { name: 'Trip', currency: 'BDT', sheetUrl: 'not a link', memberEmails: [] }, A), 'INVALID');
+test('setup builds the Drive layout and is idempotent', () => {
+  const folderName = (prop) => gas.files.get(gas.props.get(prop)).name;
+  assert.equal(folderName('APP_FOLDER_ID'), 'FairShare');
+  for (const [prop, name] of [['GROUPS_FOLDER_ID', 'Groups'], ['RECEIPTS_FOLDER_ID', 'Receipts'], ['BACKUP_FOLDER_ID', 'Backups']]) {
+    assert.equal(folderName(prop), name);
+    assert.equal(gas.files.get(gas.props.get(prop)).parent, gas.props.get('APP_FOLDER_ID'));
+  }
+  assert.equal(gas.files.get(gas.props.get('REGISTRY_SHEET_ID')).parent, gas.props.get('APP_FOLDER_ID'));
+  assert.deepEqual(gas.triggers.map((t) => t.fn), ['weeklyBackup']);
+  gas.setup();
+  assert.equal(gas.triggers.length, 1, 'setup must not add a second trigger');
 });
 
-test('create group initialises sheet and memberships', () => {
-  const ss = gas.newSpreadsheet('Untitled spreadsheet');
+test('create group makes an app-owned spreadsheet', () => {
+  err(gas.call('createGroup', { name: '', currency: 'BDT', memberEmails: [] }, A), 'INVALID');
+  err(gas.call('createGroup', { name: 'Trip', currency: 'XYZ', memberEmails: [] }, A), 'INVALID');
   const d = ok(
     gas.call(
       'createGroup',
@@ -55,7 +59,6 @@ test('create group initialises sheet and memberships', () => {
         name: "Cox's Bazar trip",
         description: 'Dec 2026',
         currency: 'BDT',
-        sheetUrl: ss.getUrl(),
         memberEmails: ['BOB@gmail.com', 'carol@gmail.com', 'alice@gmail.com'],
       },
       A,
@@ -64,13 +67,15 @@ test('create group initialises sheet and memberships', () => {
   groupId = d.group.id;
   assert.equal(d.members.length, 3);
   assert.equal(d.members.find((m) => m.email === 'alice@gmail.com').role, 'owner');
+  assert.equal('sheetUrl' in d.group, false, 'sheet location must not leak to clients');
+  const groupSheets = [...gas.files.values()].filter((f) => f.isSheet && f.parent === gas.props.get('GROUPS_FOLDER_ID'));
+  assert.equal(groupSheets.length, 1);
+  const ss = gas.spreadsheets.get(groupSheets[0].id);
   assert.deepEqual(
     ss.getSheets().map((s) => s.getName()).sort(),
     ['Activity', 'Expenses', 'Members', 'Meta', 'Payments'],
   );
-  assert.equal(ss.getName(), "FairShare – Cox's Bazar trip");
-  // same sheet cannot be reused
-  err(gas.call('createGroup', { name: 'Again', currency: 'BDT', sheetUrl: ss.getUrl(), memberEmails: [] }, B), 'CONFLICT');
+  assert.match(ss.getName(), /^FairShare – Cox's Bazar trip \(/);
   // bob sees it on his dashboard
   const list = ok(gas.call('listGroups', {}, B));
   assert.equal(list.length, 1);
@@ -287,4 +292,33 @@ test('cache returns consistent data', () => {
   const d1 = ok(gas.call('getGroup', { groupId }, A));
   const d2 = ok(gas.call('getGroup', { groupId }, B));
   assert.deepEqual(d1, d2);
+});
+
+test('weekly backup copies registry + groups and keeps the last 8', () => {
+  const backupRoot = gas.props.get('BACKUP_FOLDER_ID');
+  const msg = gas.weeklyBackup();
+  assert.match(msg, /registry \+ 1 group/);
+  const folders = () => [...gas.files.values()].filter((f) => f.isFolder && f.parent === backupRoot && !f.trashed);
+  assert.equal(folders().length, 1);
+  const copies = [...gas.files.values()].filter((f) => f.isSheet && f.parent === folders()[0].id);
+  assert.deepEqual(copies.map((c) => c.name).sort(), ["Cox's Bazar trip (" + groupId.slice(0, 8) + ')', 'FairShare Registry'].sort());
+  // backup copies hold real data
+  const groupCopy = gas.spreadsheets.get(copies.find((c) => c.name !== 'FairShare Registry').id);
+  assert.ok(groupCopy.getSheetByName('Expenses').getLastRow() > 1);
+  for (let i = 0; i < 10; i++) gas.weeklyBackup();
+  assert.equal(folders().length, 8);
+});
+
+test('delete group: owner only, name confirmation, data trashed', () => {
+  const sheetId = [...gas.files.values()].find((f) => f.isSheet && f.parent === gas.props.get('GROUPS_FOLDER_ID')).id;
+  const receiptsFolder = [...gas.files.values()].find((f) => f.isFolder && f.name === groupId);
+  err(gas.call('deleteGroup', { groupId, confirmName: "Cox's Bazar trip" }, B), 'FORBIDDEN');
+  err(gas.call('deleteGroup', { groupId, confirmName: 'wrong' }, A), 'INVALID');
+  err(gas.call('deleteGroup', { groupId, confirmName: "Cox's Bazar trip" }, X), 'FORBIDDEN');
+  assert.equal(ok(gas.call('deleteGroup', { groupId, confirmName: " Cox's Bazar trip " }, A)), null);
+  assert.equal(gas.files.get(sheetId).trashed, true);
+  assert.equal(receiptsFolder.trashed, true);
+  err(gas.call('getGroup', { groupId }, A), 'NOT_FOUND');
+  assert.equal(ok(gas.call('listGroups', {}, B)).length, 0);
+  assert.equal(ok(gas.call('listGroups', {}, A)).length, 0);
 });

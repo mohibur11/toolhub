@@ -40,3 +40,8 @@ export function getReceipt(user: User, req: Req<'getReceipt'>) {
   const blob = file.getBlob();
   return { base64: Utilities.base64Encode(blob.getBytes()), mimeType: blob.getContentType() ?? 'image/jpeg' };
 }
+
+export function trashGroupReceipts(groupId: string): void {
+  const it = DriveApp.getFolderById(prop('RECEIPTS_FOLDER_ID')).getFoldersByName(groupId);
+  while (it.hasNext()) it.next().setTrashed(true);
+}

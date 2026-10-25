@@ -49,7 +49,7 @@ export default function LoginPage() {
       <ul className="mt-8 space-y-2 text-sm text-slate-600 dark:text-slate-300">
         <li>✓ Split equally, by amount, percent or shares</li>
         <li>✓ Simplified “who pays whom” settle-up</li>
-        <li>✓ Your data lives in your own Google Sheet</li>
+        <li>✓ No setup, just sign in with Google</li>
       </ul>
       <div className="mt-10 flex min-h-[44px] items-center justify-center">
         {busy && (
@@ -61,7 +61,11 @@ export default function LoginPage() {
         <div ref={buttonRef} className={busy ? 'hidden' : ''} />
       </div>
       {error && <p className="mt-4 max-w-xs text-center text-sm text-rose-600">{error}</p>}
-      <p className="mt-10 text-xs text-slate-400">
+      <p className="mt-8 max-w-xs text-center text-xs text-slate-500">
+        Sign-in shares only your name, email and profile photo. Group data is stored in the FairShare owner's Google account and
+        is visible to that account; in the app, only your group's members see it.
+      </p>
+      <p className="mt-4 text-xs text-slate-400">
         Free forever · no ads ·{' '}
         <a href={TOOLHUB_URL} className="underline hover:text-slate-600">
           more tools on Toolhub

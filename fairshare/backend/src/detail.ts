@@ -52,7 +52,6 @@ export function buildDetail(group: GroupRow, memberships: MembershipRow[], ss: S
       createdAt: group.createdAt,
       simplifyDebts: group.simplifyDebts,
       archived: group.archived,
-      sheetUrl: `https://docs.google.com/spreadsheets/d/${group.sheetId}/edit`,
       version: group.version,
     },
     members: toMembers(memberships),

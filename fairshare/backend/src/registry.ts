@@ -2,7 +2,7 @@
 import type { User } from '../../shared/types';
 import { nowIso, prop } from './config';
 import { ApiError } from './errors';
-import { appendRecord, bool, ensureSheet, getSheet, num, readRecords, Rec, str, updateRecord } from './sheets';
+import { appendRecord, bool, deleteRecords, ensureSheet, getSheet, num, readRecords, Rec, str, updateRecord } from './sheets';
 
 export const REGISTRY_TABS = {
   Users: ['email', 'name', 'pictureUrl', 'createdAt', 'lastSeenAt'],
@@ -174,4 +174,12 @@ export function saveDerived(group: GroupRow, memberships: MembershipRow[], balan
       m.netMinor = net;
     }
   });
+}
+
+/** Remove a group and all its memberships from the registry. */
+export function deleteGroupRows(groupId: string): void {
+  const groups = getSheet(registry(), 'Groups');
+  deleteRecords(groups, readRecords(groups).filter((r) => str(r.groupId) === groupId));
+  const memberships = getSheet(registry(), 'Memberships');
+  deleteRecords(memberships, readRecords(memberships).filter((r) => str(r.groupId) === groupId));
 }

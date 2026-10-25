@@ -98,3 +98,8 @@ export function json<T>(v: unknown, fallback: T): T {
     return fallback;
   }
 }
+
+/** Delete records' rows (bottom-up so earlier row numbers stay valid). */
+export function deleteRecords(sheet: Sheet, recs: Rec[]): void {
+  [...recs].sort((a, b) => b._row - a._row).forEach((r) => sheet.deleteRow(r._row));
+}

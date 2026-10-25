@@ -90,3 +90,18 @@ export function useCreateGroup() {
     },
   });
 }
+
+export function useDeleteGroup(groupId: string) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (confirmName: string) => api('deleteGroup', { groupId, confirmName }),
+    onSuccess: () => {
+      qc.setQueryData<ApiActions['listGroups']['res']>(keys.groups, (list) => list?.filter((g) => g.id !== groupId));
+      qc.removeQueries({ queryKey: keys.group(groupId) });
+      qc.removeQueries({ queryKey: keys.activity(groupId) });
+      toast.success('Group deleted');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}

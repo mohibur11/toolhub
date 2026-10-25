@@ -4,8 +4,8 @@ A Toolhub tool: a free, self-hosted Splitwise alternative. Track shared expenses
 
 - **Frontend:** React + Vite + Tailwind. The build is committed to `../tools/fairshare/` and served by Toolhub's GitHub Pages (installable as a phone app / PWA).
 - **Backend:** Google Apps Script web app (runs on your Google account, free)
-- **Database:** Google Sheets: one central registry sheet plus one sheet per group
-- **Login:** Sign in with Google (any Gmail account)
+- **Database:** Google Sheets in the owner's Drive: a registry sheet plus one spreadsheet per group, created automatically
+- **Login:** Sign in with Google (any Gmail account). Users and group creators never grant Drive or Sheets access.
 
 Live at `https://mohibur11.github.io/toolhub/tools/fairshare/` once configured.
 
@@ -17,6 +17,8 @@ Live at `https://mohibur11.github.io/toolhub/tools/fairshare/` once configured.
 - Balances per member, plus a **Settle up** plan that keeps the number of payments low. "Simplify debts" can be turned off for direct debts.
 - **Record payments** (from the settle-up plan or freely). Balances update instantly.
 - **Activity log** with restore for deleted expenses, edit history per expense, and **CSV export**.
+- Group owners can **archive** or **permanently delete** a group.
+- **Weekly automatic backup** of all data (last 8 kept).
 - Optional email when someone adds you to a group.
 
 ## How it works
@@ -24,12 +26,16 @@ Live at `https://mohibur11.github.io/toolhub/tools/fairshare/` once configured.
 ```
 Browser (Toolhub Pages) ──POST JSON──▶  Apps Script web app (runs as the owner)
    Google Sign-In                         ├─ verifies Google ID token → issues 30-day session
-                                          ├─ FairShare Registry sheet (users, groups, memberships)
-                                          ├─ Group sheets (expenses, payments, activity)
-                                          └─ Drive folder "FairShare Receipts"
+                                          └─ Owner's Drive: FairShare/
+                                               ├─ FairShare Registry   users, groups, memberships
+                                               ├─ Groups/              one spreadsheet per group (expenses, payments, activity)
+                                               ├─ Receipts/            receipt photos, one folder per group
+                                               └─ Backups/             weekly snapshots (last 8)
 ```
 
-Users never need direct access to the registry. A group's creator shares their group sheet with the **owner account** (the Google account that deployed the script) so the app can write to it.
+Everything lives in the **owner account** (the Google account that deployed the script). Creating a group makes a new spreadsheet in `FairShare/Groups/`, with nothing to share or paste. Each group has its own spreadsheet, so a group stays fast however many groups exist.
+
+**Privacy, honestly:** the owner account can see all groups' data. The app shows this on the login and new-group screens. Members only see their own groups, and sign-in shares only name, email and photo. Protect the owner account with 2-step verification; ideally use a dedicated Gmail for it.
 
 All money is stored as integer minor units (paisa/cents). Split and settle logic lives in `shared/`. The frontend (for instant previews) and the backend (the final word) use the same code.
 
@@ -47,7 +53,7 @@ toolhub/
 
 ## One-time setup
 
-You need Node 20+ and a Google account to own the app. This "owner account" stores the registry and receipts, and runs the script.
+You need Node 20+ and a Google account to own the app. This "owner account" runs the script and stores all data in its Drive, which counts toward its free 15 GB.
 
 ### 1. Google OAuth client ID (for "Sign in with Google")
 
@@ -74,7 +80,7 @@ npm run push                                      # builds dist/Code.js and uplo
 Then in the Apps Script editor (`npx clasp open`):
 
 1. **Project Settings → Script properties → Add**: `GOOGLE_CLIENT_ID` = the client ID from step 1.
-2. Select the `setup` function and click **Run**. Approve the permissions. This creates the *FairShare Registry* sheet, the *FairShare Receipts* folder and a session secret.
+2. Select the `setup` function and click **Run**. Approve the permissions. This creates the `FairShare/` folder (Registry, Groups, Receipts, Backups), a session secret and the weekly backup trigger (Sundays around 3 AM). Run `weeklyBackup` by hand any time for an extra snapshot.
 3. **Deploy → New deployment → Web app**: *Execute as:* **Me**, *Who has access:* **Anyone**. Copy the Web app URL (ends with `/exec`).
 
 Optional script properties:
@@ -106,11 +112,16 @@ Toolhub is served straight from the `main` branch with no CI build. **After sour
 
 ## Creating a group (for users)
 
-1. Create a blank Google Sheet (<https://sheets.new>).
-2. Share it with the owner email shown in the app, as **Editor**.
-3. In FairShare: **New group** → paste the sheet link → add friends' emails.
+In FairShare, tap **New group**, enter a name and currency, and add friends' emails. That's all: no sheet to create or share. Friends see the group the next time they sign in with that Google account.
 
-The app creates the `Meta`, `Members`, `Expenses`, `Payments` and `Activity` tabs. The sheet stays readable on its own, but make changes through the app so balances stay correct.
+Behind the scenes the app creates `FairShare/Groups/FairShare – <name> (<id>)` with `Meta`, `Members`, `Expenses`, `Payments` and `Activity` tabs. As the owner you can open these sheets to inspect data, but make changes through the app so balances stay correct.
+
+## Backups and deletion
+
+- Every Sunday the `weeklyBackup` trigger copies the registry and every group spreadsheet into `FairShare/Backups/FairShare backup <date>/`, keeping the latest 8. To restore a group, copy the data from a backup spreadsheet back into the live one, in `FairShare/Groups/`.
+- One run copies roughly 300 groups (Apps Script stops a run after 6 minutes). If the log reports skipped groups, run `weeklyBackup` again by hand.
+- Receipt photos are not copied into backups. They stay in `FairShare/Receipts/`.
+- **Delete group** (group owner only, confirmed by typing the group name) removes the group from the registry and moves its spreadsheet and receipts to the owner's Drive trash, which Google empties after 30 days. Older weekly backups still contain the group until they rotate out (about 8 weeks).
 
 ## Development
 
