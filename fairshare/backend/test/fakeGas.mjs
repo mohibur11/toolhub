@@ -245,7 +245,13 @@ export function createFakeGas({ clientId = 'test-client-id', owner = 'owner@gmai
         return builder;
       },
     },
-    MailApp: { sendEmail: (m) => mails.push(m) },
+    MailApp: {
+      quota: 100,
+      getRemainingDailyQuota() {
+        return this.quota - mails.length;
+      },
+      sendEmail: (m) => mails.push(m),
+    },
     ContentService: {
       MimeType: { JSON: 'json' },
       createTextOutput: (s) => ({ setMimeType: () => ({ content: s }) }),

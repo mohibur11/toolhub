@@ -51,7 +51,7 @@ function Settings({ d }: { d: GroupDetail }) {
       { email: newEmail.trim() },
       {
         onSuccess: () => {
-          toast.success('Member added');
+          toast.success('Member added, invite email sent');
           setNewEmail('');
         },
       },

@@ -96,7 +96,7 @@ export function createGroup(user: User, req: Req<'createGroup'>) {
     ctx.me = ctx.memberships[0];
     syncMembersTab(ctx);
     logActivity(ss, user.email, 'create', 'group', groupId, `${user.name} created the group "${name}"`);
-    others.forEach((e) => notifyAdded(e, user.name, name));
+    others.forEach((e) => notifyAdded(e, user, name));
     return finishWrite(ctx);
   });
 }
@@ -170,7 +170,7 @@ export function addMember(user: User, req: Req<'addMember'>) {
     }
     syncMembersTab(ctx);
     logActivity(ctx.ss, user.email, 'add', 'member', newEmail, `${user.name} added ${newEmail}`);
-    notifyAdded(newEmail, user.name, ctx.group.name);
+    notifyAdded(newEmail, user, ctx.group.name);
     return finishWrite(ctx);
   });
 }

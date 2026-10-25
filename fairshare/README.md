@@ -19,7 +19,7 @@ Live at `https://mohibur11.github.io/toolhub/tools/fairshare/` once configured.
 - **Activity log** with restore for deleted expenses, edit history per expense, and **CSV export**.
 - Group owners can **archive** or **permanently delete** a group.
 - **Weekly automatic backup** of all data (last 8 kept).
-- Optional email when someone adds you to a group.
+- **Invite email** when someone adds you to a group.
 
 ## How it works
 
@@ -83,12 +83,14 @@ Then in the Apps Script editor (`npx clasp open`):
 2. Select the `setup` function and click **Run**. Approve the permissions. This creates the `FairShare/` folder (Registry, Groups, Receipts, Backups), a session secret and the weekly backup trigger (Sundays around 3 AM). Run `weeklyBackup` by hand any time for an extra snapshot.
 3. **Deploy → New deployment → Web app**: *Execute as:* **Me**, *Who has access:* **Anyone**. Copy the Web app URL (ends with `/exec`).
 
-Optional script properties:
+**Invite emails:** when someone is added to a group, the app emails them from the owner's Gmail as "FairShare". Replies go to the person who added them. Script properties that control this:
 
-| Property      | Value                                                                              |
-| ------------- | ---------------------------------------------------------------------------------- |
-| `SEND_EMAILS` | `true` to email people when they're added to a group                               |
-| `APP_URL`     | `https://mohibur11.github.io/toolhub/tools/fairshare/` (link used in those emails) |
+| Property      | Default (set by `setup`)                               | Meaning                                          |
+| ------------- | ------------------------------------------------------ | ------------------------------------------------ |
+| `SEND_EMAILS` | not set (= on)                                         | set to `false` to stop invite emails             |
+| `APP_URL`     | `https://mohibur11.github.io/toolhub/tools/fairshare/` | link in the email; change it if the app moves     |
+
+Gmail accounts can send about 100 emails a day from Apps Script. Once that's used up, people are still added to groups but don't get an email that day.
 
 After changing backend code, run `npm run push`, then **Deploy → Manage deployments → edit → Version: New version** so the same URL serves the new code.
 

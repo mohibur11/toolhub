@@ -8,6 +8,8 @@
 import { ensureRegistryTabs } from './registry';
 import type { PropName } from './config';
 
+const DEFAULT_APP_URL = 'https://mohibur11.github.io/toolhub/tools/fairshare/';
+
 export function setup(): string {
   const props = PropertiesService.getScriptProperties();
   const log: string[] = [];
@@ -50,6 +52,12 @@ export function setup(): string {
   if (!props.getProperty('SESSION_SECRET')) {
     props.setProperty('SESSION_SECRET', Utilities.getUuid() + Utilities.getUuid());
     log.push('Generated session secret');
+  }
+
+  // Link used in "you were added to a group" emails. Change the script property if the app moves.
+  if (!props.getProperty('APP_URL')) {
+    props.setProperty('APP_URL', DEFAULT_APP_URL);
+    log.push(`App link for emails: ${DEFAULT_APP_URL}`);
   }
 
   props.setProperty('OWNER_EMAIL', Session.getEffectiveUser().getEmail());

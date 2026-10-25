@@ -65,7 +65,7 @@ export default function CreateGroupModal({ open, onClose }: { open: boolean; onC
         <div>
           <label className="label">Add members (email)</label>
           <EmailChips value={emails} onChange={setEmails} />
-          <p className="mt-1 text-xs text-slate-500">They'll see the group when they sign in with that Google account. You can add more people later.</p>
+          <p className="mt-1 text-xs text-slate-500">We'll email each person an invite. They sign in with that Google account to see the group. You can add more people later.</p>
         </div>
         <p className="text-xs text-slate-500">
           Group data is stored by the FairShare owner's Google account{ownerEmail && ` (${ownerEmail})`} and is visible to that

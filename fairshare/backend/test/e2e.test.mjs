@@ -76,6 +76,12 @@ test('create group makes an app-owned spreadsheet', () => {
     ['Activity', 'Expenses', 'Members', 'Meta', 'Payments'],
   );
   assert.match(ss.getName(), /^FairShare – Cox's Bazar trip \(/);
+  // initial members are emailed (not the creator), with replies going to the creator
+  assert.deepEqual(gas.mails.map((m) => m.to).sort(), ['bob@gmail.com', 'carol@gmail.com']);
+  assert.equal(gas.mails[0].replyTo, 'alice@gmail.com');
+  assert.match(gas.mails[0].subject, /Alice added you to "Cox's Bazar trip"/);
+  assert.match(gas.mails[0].htmlBody, /https:\/\/mohibur11\.github\.io\/toolhub\/tools\/fairshare\//);
+  assert.match(gas.mails[0].htmlBody, /Cox&#39;s Bazar trip/, 'group name must be HTML-escaped');
   // bob sees it on his dashboard
   const list = ok(gas.call('listGroups', {}, B));
   assert.equal(list.length, 1);
@@ -256,6 +262,31 @@ test('simplify toggle switches to pairwise debts', () => {
   assert.equal(d.group.simplifyDebts, false);
   assert.equal(sumBalances(d.balances), 0);
   ok(gas.call('updateGroup', { groupId, simplifyDebts: true }, B));
+});
+
+test('adding a member emails them; opt-out and quota are respected', () => {
+  const before = gas.mails.length;
+  ok(gas.call('addMember', { groupId, email: 'Erin@Gmail.com' }, B));
+  assert.equal(gas.mails.length, before + 1);
+  const mail = gas.mails.at(-1);
+  assert.equal(mail.to, 'erin@gmail.com');
+  assert.equal(mail.replyTo, 'bob@gmail.com');
+  assert.match(mail.body, /sign in with this Google account \(erin@gmail.com\)/);
+  ok(gas.call('removeMember', { groupId, email: 'erin@gmail.com' }, A));
+
+  // quota exhausted: member is still added, no email, no error
+  gas.context.MailApp.quota = gas.mails.length;
+  ok(gas.call('addMember', { groupId, email: 'erin@gmail.com' }, B));
+  assert.equal(gas.mails.length, before + 1);
+  ok(gas.call('removeMember', { groupId, email: 'erin@gmail.com' }, A));
+  gas.context.MailApp.quota = 100;
+
+  // SEND_EMAILS=false turns notifications off
+  gas.props.set('SEND_EMAILS', 'false');
+  ok(gas.call('addMember', { groupId, email: 'erin@gmail.com' }, B));
+  assert.equal(gas.mails.length, before + 1);
+  ok(gas.call('removeMember', { groupId, email: 'erin@gmail.com' }, A));
+  gas.props.delete('SEND_EMAILS');
 });
 
 test('members: add, remove rules, leave', () => {
