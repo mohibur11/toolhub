@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>FairShare feasibility test</title>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        --accent: #059669;
+        --accent-ink: #ffffff;
+        --pass: #047857;
+        --pass-bg: #ecfdf5;
+        --fail: #b91c1c;
+        --fail-bg: #fef2f2;
+        --note: #92400e;
+        --note-bg: #fffbeb;
+        --a: #1e40af;
+        --a-bg: #dbeafe;
+        --b: #9d174d;
+        --b-bg: #fce7f3;
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #020617;
+          --card: #0f172a;
+          --ink: #e2e8f0;
+          --muted: #94a3b8;
+          --line: #1e293b;
+          --accent: #10b981;
+          --accent-ink: #022c22;
+          --pass: #6ee7b7;
+          --pass-bg: #052e22;
+          --fail: #fca5a5;
+          --fail-bg: #3b0d0d;
+          --note: #fcd34d;
+          --note-bg: #3a2a05;
+          --a: #bfdbfe;
+          --a-bg: #1e3a8a;
+          --b: #fbcfe8;
+          --b-bg: #831843;
+          color-scheme: dark;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      main { max-width: 760px; margin: 0 auto; padding: 20px 16px 80px; }
+      h1 { font-size: 1.5rem; margin: 0 0 4px; }
+      h2 { font-size: 1.05rem; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      h3 { font-size: 0.95rem; margin: 14px 0 4px; }
+      p { margin: 6px 0; }
+      ol, ul { margin: 6px 0; padding-left: 22px; }
+      .muted { color: var(--muted); font-size: 0.9rem; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin: 14px 0; }
+      .badge { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--line); color: var(--ink); }
+      .badge.a { background: var(--a-bg); color: var(--a); }
+      .badge.b { background: var(--b-bg); color: var(--b); }
+      button {
+        font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 9px 14px;
+        background: var(--accent); color: var(--accent-ink); cursor: pointer; margin: 4px 6px 4px 0;
+      }
+      button.secondary { background: var(--line); color: var(--ink); }
+      body.busy button { opacity: 0.55; cursor: progress; }
+      input, textarea {
+        font: inherit; width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px;
+        background: var(--bg); color: var(--ink);
+      }
+      label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin: 10px 0 4px; }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .row > input { flex: 1; min-width: 200px; }
+      .out { margin-top: 6px; font-size: 0.88rem; }
+      .res { border-radius: 10px; padding: 8px 10px; margin-top: 6px; overflow-wrap: anywhere; }
+      .res.PASS { background: var(--pass-bg); color: var(--pass); }
+      .res.FAIL { background: var(--fail-bg); color: var(--fail); }
+      .res.NOTE { background: var(--note-bg); color: var(--note); }
+      .ask { margin-top: 8px; padding: 10px; border: 1px dashed var(--muted); border-radius: 10px; }
+      .status { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 0.9rem; }
+      .status dt { color: var(--muted); }
+      .status dd { margin: 0; overflow-wrap: anywhere; }
+      code, textarea.log { font-family: ui-monospace, Consolas, monospace; font-size: 0.82rem; }
+      textarea.log { min-height: 240px; }
+      details summary { cursor: pointer; font-weight: 600; }
+      .warn { color: var(--fail); font-weight: 600; }
+    </style>
+    <!-- Same runtime config the real app uses (client ID + API key). Missing file = use Settings below. -->
+    <script src="../../js/fairshare-config.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+  </head>
+  <body>
+    <main>
+      <h1>FairShare feasibility test</h1>
+      <p class="muted">
+        Throwaway page. Checks that FairShare can work with <b>no server and no admin access</b>: each person's browser
+        uses their own Google permission (<code>drive.file</code>). Use a <b>separate Chrome profile</b> for each test
+        account (not incognito). Every step records its result below; at the end each profile copies its results.
+      </p>
+
+      <section class="card">
+        <dl class="status">
+          <dt>Signed in</dt><dd id="st-user">not signed in</dd>
+          <dt>Google access</dt><dd id="st-token">none</dd>
+          <dt>Libraries</dt><dd id="st-lib">loading…</dd>
+          <dt>Config</dt><dd id="st-cfg"></dd>
+        </dl>
+        <label for="file">Test group sheet (filled automatically by step 2 or by the invite link)</label>
+        <div class="row">
+          <input id="file" placeholder="Sheet link or ID" autocomplete="off" />
+        </div>
+        <p class="muted">Join link for the other accounts: <code id="join"></code></p>
+        <button class="secondary" id="btn-copy-join">Copy join link</button>
+        <details>
+          <summary>Settings (only if the config file is missing values)</summary>
+          <label for="cfg-client">OAuth client ID</label>
+          <input id="cfg-client" autocomplete="off" />
+          <label for="cfg-key">API key</label>
+          <input id="cfg-key" autocomplete="off" />
+          <label for="cfg-app">Project number (app ID)</label>
+          <input id="cfg-app" autocomplete="off" />
+          <div class="row">
+            <button id="btn-cfg-save">Save and reload</button>
+            <button class="secondary" id="btn-cfg-reset">Use config file</button>
+          </div>
+        </details>
+      </section>
+
+      <section class="card">
+        <h2><span class="badge">Every account</span> 1. Sign in</h2>
+        <p>
+          Google asks which account to use and for permission. <b>Tick every box</b>, including the two Drive ones
+          ("files you use with this app" and "configuration data").
+        </p>
+        <button id="btn-1">Sign in with Google</button>
+        <div class="out" id="out-1"></div>
+      </section>
+
+      <section class="card">
+        <h2><span class="badge a">Account A</span> 2. Create a test group and invite</h2>
+        <p>Creates a sheet in A's Drive (folder "FairShare test") and shares it as Editor. Google emails each person.</p>
+        <label for="invite">Emails of the other test accounts (B, and C if you have one)</label>
+        <input id="invite" placeholder="b-account@gmail.com, c-account@gmail.com" autocomplete="off" />
+        <button id="btn-2">Create sheet and share</button>
+        <div class="out" id="out-2"></div>
+      </section>
+
+      <section class="card">
+        <h2><span class="badge b">Account B</span> 3. Join the group</h2>
+        <p>Open the join link (or Google's invite email) in B's Chrome profile, then sign in with step 1.</p>
+        <ol>
+          <li>
+            <button id="btn-3a">a. Check access before the picker</button>
+            <span class="muted">Expected: blocked. If it works, the picker isn't needed at all.</span>
+          </li>
+          <li>
+            <button id="btn-3b">b. Open the picker for this sheet</button>
+            <span class="muted">A Google window should show only the test sheet. Select it. Step c runs right after.</span>
+          </li>
+          <li>
+            <button id="btn-3c">c. Read and write the sheet</button>
+          </li>
+          <li>
+            <button class="secondary" id="btn-3d">d. (Optional) Find shared groups by search</button>
+            <span class="muted">Picker listing sheets shared with you whose name contains "FairShare".</span>
+          </li>
+        </ol>
+        <div class="out" id="out-3"></div>
+      </section>
+
+      <section class="card">
+        <h2><span class="badge">Every account</span> 4. Hidden personal file</h2>
+        <p>Saves and reads back a small hidden file in your own Drive (where the real app would keep "my groups").</p>
+        <button id="btn-4">Save and read hidden file</button>
+        <div class="out" id="out-4"></div>
+      </section>
+
+      <section class="card">
+        <h2><span class="badge b">Account B</span> 5. Can a member invite someone?</h2>
+        <label for="extra">Another test email (C), or any email you control</label>
+        <input id="extra" placeholder="c-account@gmail.com" autocomplete="off" />
+        <button id="btn-5a">Share the sheet with this person</button>
+        <h3><span class="badge a">Account A</span> Optional: block members from sharing, then let B try again</h3>
+        <button class="secondary" id="btn-5b">Block members from sharing</button>
+        <button class="secondary" id="btn-5c">Allow members to share</button>
+        <div class="out" id="out-5"></div>
+      </section>
+
+      <section class="card">
+        <h2><span class="badge a">Account A</span> 6. Owner sees members' changes</h2>
+        <button id="btn-6">Read expenses and access list</button>
+        <div class="out" id="out-6"></div>
+      </section>
+
+      <section class="card">
+        <h2><span class="badge">Any account</span> 7. Sign-in refresh</h2>
+        <p>
+          Google's access lasts about 1 hour, then the app must ask for a new one. Try each button, then answer what you
+          saw.
+        </p>
+        <button id="btn-7a">a. New access now (prompt: none)</button>
+        <button id="btn-7b">b. New access now (default prompt)</button>
+        <button class="secondary" id="btn-7c">c. New access in 3 s, without a click</button>
+        <div class="out" id="out-7"></div>
+      </section>
+
+      <section class="card">
+        <h2><span class="badge">A then B</span> 8. Hand over ownership</h2>
+        <ol>
+          <li>
+            <span class="badge a">A</span>
+            <input id="handover" placeholder="B's email" autocomplete="off" />
+            <button id="btn-8a">Offer ownership to this person</button>
+          </li>
+          <li><span class="badge b">B</span> <button id="btn-8b">Accept ownership</button></li>
+          <li><span class="badge">Any</span> <button class="secondary" id="btn-8c">Who owns the sheet?</button></li>
+          <li>
+            <span class="badge a">A</span> <button class="secondary" id="btn-8d">Leave the group (remove my access)</button>
+            <span class="muted">Only after B owns it.</span>
+          </li>
+        </ol>
+        <div class="out" id="out-8"></div>
+      </section>
+
+      <section class="card">
+        <h2><span class="badge">Owner</span> 9. Remove access and delete</h2>
+        <label for="remove">Email to remove (for example C)</label>
+        <input id="remove" placeholder="c-account@gmail.com" autocomplete="off" />
+        <button id="btn-9a">Owner: remove this person's access</button>
+        <button class="secondary" id="btn-9b">Anyone: check my access</button>
+        <button class="secondary" id="btn-9c">Owner: move the test sheet to trash</button>
+        <div class="out" id="out-9"></div>
+      </section>
+
+      <section class="card">
+        <h2><span class="badge">Optional</span> 10. Phone</h2>
+        <p class="muted">
+          Needs this page online (push to GitHub) at
+          <code>https://mohibur11.github.io/toolhub/tools/fairshare-spike/</code>. On the phone, open the join link,
+          sign in as B or C, then run 3b and 3c. Tells us whether the Google picker works on mobile.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Results</h2>
+        <p class="muted">Each Chrome profile keeps its own results. Copy them from every profile and paste them to Claude.</p>
+        <textarea class="log" id="log" readonly></textarea>
+        <div class="row">
+          <button id="btn-copy-log">Copy results</button>
+          <button class="secondary" id="btn-clear-log">Clear results</button>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      'use strict';
+      (() => {
+        const $ = (sel) => document.querySelector(sel);
+        const DRIVE = 'https://www.googleapis.com/drive/v3';
+        const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
+        const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
+        const DRIVE_FILE = 'https://www.googleapis.com/auth/drive.file';
+        const DRIVE_APPDATA = 'https://www.googleapis.com/auth/drive.appdata';
+        const SCOPES = ['openid', 'email', 'profile', DRIVE_FILE, DRIVE_APPDATA];
+        const FOLDER_NAME = 'FairShare test';
+        const INDEX_NAME = 'fairshare-spike-index.json';
+
+        // ---------- storage (per Chrome profile) ----------
+        const store = {
+          get(key, fallback) {
+            try {
+              const v = localStorage.getItem('fs-spike.' + key);
+              return v === null ? fallback : JSON.parse(v);
+            } catch {
+              return fallback;
+            }
+          },
+          set(key, value) {
+            try {
+              localStorage.setItem('fs-spike.' + key, JSON.stringify(value));
+            } catch {
+              // storage unavailable; results live only in this tab
+            }
+          },
+        };
+
+        // ---------- config ----------
+        const filled = (v) => (v && !String(v).startsWith('PASTE') ? String(v).trim() : '');
+        const fileCfg = window.FAIRSHARE_CONFIG || {};
+        const overrides = store.get('cfg', {});
+        const cfg = {
+          clientId: overrides.clientId || filled(fileCfg.googleClientId),
+          apiKey: overrides.apiKey || filled(fileCfg.googleApiKey),
+        };
+        // The OAuth client ID starts with the project number, which the picker needs as its app ID.
+        cfg.appId = overrides.appId || (cfg.clientId.match(/^(\d+)-/) || [])[1] || '';
+
+        // ---------- state ----------
+        let token = null; // { value, expiresAt }
+        let me = null; // { email, name, permissionId }
+        let tokenClient = null;
+        let pending = null;
+        let busy = false;
+        let results = store.get('log', []);
+
+        const parseFileId = (s) => (String(s || '').match(/[-\w]{25,}/) || [])[0] || '';
+        const parseEmails = (s) =>
+          String(s || '')
+            .split(/[\s,;]+/)
+            .map((x) => x.trim().toLowerCase())
+            .filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
+        let fileId = parseFileId(new URLSearchParams(location.search).get('file')) || store.get('fileId', '');
+        const joinLink = (id) => `${location.origin}${location.pathname}?file=${id}`;
+
+        function setFileId(id) {
+          fileId = id;
+          store.set('fileId', id);
+          $('#file').value = id;
+          $('#join').textContent = id ? joinLink(id) : '(create the group in step 2 first)';
+        }
+
+        // ---------- results ----------
+        function record(step, result, detail, outEl) {
+          const entry = {
+            t: new Date().toISOString(),
+            who: me ? me.email : '(not signed in)',
+            step,
+            result,
+            detail: String(detail ?? ''),
+          };
+          results.push(entry);
+          store.set('log', results);
+          renderLog();
+          if (outEl) {
+            const div = document.createElement('div');
+            div.className = 'res ' + result;
+            div.textContent = `${result} · ${step}: ${entry.detail}`;
+            outEl.prepend(div);
+          }
+        }
+
+        function resultsText() {
+          return [
+            'FairShare feasibility results',
+            `Browser: ${navigator.userAgent}`,
+            `Page: ${location.origin}${location.pathname}`,
+            `Project number: ${cfg.appId || '(none)'} · API key set: ${cfg.apiKey ? 'yes' : 'no'}`,
+            '',
+            ...results.map((e) => `${e.t.slice(5, 19).replace('T', ' ')}  ${e.result.padEnd(4)}  [${e.who}]  ${e.step}: ${e.detail}`),
+          ].join('\n');
+        }
+
+        function renderLog() {
+          $('#log').value = resultsText();
+        }
+
+        function ask(outEl, step, question, answers) {
+          const box = document.createElement('div');
+          box.className = 'ask';
+          const q = document.createElement('div');
+          q.textContent = question;
+          box.append(q);
+          for (const a of answers) {
+            const b = document.createElement('button');
+            b.className = 'secondary';
+            b.textContent = a;
+            b.onclick = () => {
+              record(step, 'NOTE', `What you saw: ${a}`, outEl);
+              box.remove();
+            };
+            box.append(b);
+          }
+          outEl.prepend(box);
+        }
+
+        // ---------- step runner ----------
+        // fn runs synchronously first, so a Google sign-in window opened inside it still counts as "from a click".
+        function run(step, outSel, fn) {
+          if (busy) return Promise.resolve();
+          busy = true;
+          document.body.classList.add('busy');
+          const outEl = $(outSel);
+          let p;
+          try {
+            p = Promise.resolve(fn());
+          } catch (e) {
+            p = Promise.reject(e);
+          }
+          return p
+            .then(
+              (r) => {
+                if (r && typeof r === 'object' && r.result) record(step, r.result, r.detail, outEl);
+                else record(step, 'PASS', r, outEl);
+              },
+              (e) => record(step, 'FAIL', e && e.message ? e.message : String(e), outEl),
+            )
+            .finally(() => {
+              busy = false;
+              document.body.classList.remove('busy');
+              renderStatus();
+            });
+        }
+
+        const requireMe = () => {
+          if (!me || !token) throw new Error('Sign in first (step 1)');
+          if (Date.now() > token.expiresAt) throw new Error('Google access expired. Sign in again (step 1)');
+        };
+        const requireFile = () => {
+          if (!fileId) throw new Error('No test sheet yet. Account A runs step 2, other accounts open the join link.');
+        };
+
+        // ---------- Google APIs ----------
+        function waitFor(test, timeoutMs) {
+          return new Promise((resolve, reject) => {
+            const started = Date.now();
+            (function tick() {
+              let ok = false;
+              try {
+                ok = Boolean(test());
+              } catch {
+                ok = false;
+              }
+              if (ok) return resolve();
+              if (Date.now() - started > timeoutMs) return reject(new Error('timeout'));
+              setTimeout(tick, 100);
+            })();
+          });
+        }
+
+        function settle(err, resp) {
+          const p = pending;
+          pending = null;
+          if (!p) return;
+          clearTimeout(p.timer);
+          if (err) p.reject(err);
+          else p.resolve(resp);
+        }
+
+        // Must be called synchronously from a click handler, or browsers may block Google's window.
+        function requestToken(prompt, timeoutMs = 120000) {
+          if (!tokenClient) throw new Error('Google sign-in library is not ready yet. Wait a moment and try again.');
+          const started = performance.now();
+          return new Promise((resolve, reject) => {
+            pending = {
+              resolve,
+              reject,
+              timer: setTimeout(
+                () => settle(new Error(`No answer from Google's window after ${timeoutMs / 1000} s (blocked or closed?)`)),
+                timeoutMs,
+              ),
+            };
+            const opts = { prompt };
+            if (me) opts.hint = me.email;
+            tokenClient.requestAccessToken(opts);
+          }).then((resp) => {
+            token = { value: resp.access_token, expiresAt: Date.now() + (Number(resp.expires_in) || 3600) * 1000 };
+            return { resp, ms: Math.round(performance.now() - started) };
+          });
+        }
+
+        async function api(method, url, body) {
+          requireMe();
+          const headers = { Authorization: `Bearer ${token.value}` };
+          const init = { method, headers };
+          if (body !== undefined) {
+            headers['Content-Type'] = 'application/json';
+            init.body = JSON.stringify(body);
+          }
+          let res;
+          try {
+            res = await fetch(url, init);
+          } catch (e) {
+            throw new Error(`Network error calling ${new URL(url).host}: ${e.message}`);
+          }
+          const text = await res.text();
+          let data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch {
+            data = text;
+          }
+          if (!res.ok) {
+            const err = data && data.error;
+            const reason = (err && err.errors && err.errors[0] && err.errors[0].reason) || (err && err.status) || '';
+            const message = (err && err.message) || res.statusText;
+            const e = new Error(`HTTP ${res.status}${reason ? ' ' + reason : ''}: ${message}`);
+            e.status = res.status;
+            throw e;
+          }
+          return data;
+        }
+
+        const values = (range) => api('GET', `${SHEETS}/${fileId}/values/${encodeURIComponent(range)}`);
+        const append = (range, rows) =>
+          api(
+            'POST',
+            `${SHEETS}/${fileId}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+            { values: rows },
+          );
+        const permissions = () =>
+          api('GET', `${DRIVE}/files/${fileId}/permissions?fields=permissions(id,emailAddress,role,pendingOwner)`).then(
+            (r) => r.permissions || [],
+          );
+        const describePerms = (perms) =>
+          perms.map((p) => `${p.emailAddress || p.id} (${p.role}${p.pendingOwner ? ', ownership offered' : ''})`).join(', ');
+
+        function loadPicker() {
+          return waitFor(() => window.gapi && gapi.load, 15000).then(
+            () =>
+              new Promise((resolve, reject) => {
+                if (window.google && google.picker) return resolve();
+                gapi.load('picker', {
+                  callback: resolve,
+                  onerror: () => reject(new Error('Could not load the Google Picker')),
+                  timeout: 15000,
+                  ontimeout: () => reject(new Error('Timed out loading the Google Picker')),
+                });
+              }),
+            () => {
+              throw new Error('Google API loader (api.js) did not load');
+            },
+          );
+        }
+
+        // Opens the picker; resolves with the picked files, or null if closed.
+        async function openPicker(configureView) {
+          requireMe();
+          if (!cfg.apiKey) throw new Error('No API key. Add googleApiKey to js/fairshare-config.js (or Settings).');
+          if (!cfg.appId) throw new Error('No project number. Check the OAuth client ID (or Settings).');
+          await loadPicker();
+          const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS);
+          view.setMode(google.picker.DocsViewMode.LIST);
+          const note = configureView(view) || '';
+          const picked = await new Promise((resolve) => {
+            const picker = new google.picker.PickerBuilder()
+              .setAppId(cfg.appId)
+              .setDeveloperKey(cfg.apiKey)
+              .setOAuthToken(token.value)
+              .addView(view)
+              .setTitle('FairShare test: select the group sheet')
+              .setCallback((data) => {
+                const action = data[google.picker.Response.ACTION];
+                if (action === google.picker.Action.PICKED) {
+                  const docs = data[google.picker.Response.DOCUMENTS] || [];
+                  resolve(docs.map((d) => ({ id: d[google.picker.Document.ID], name: d[google.picker.Document.NAME] })));
+                } else if (action === google.picker.Action.CANCEL) {
+                  resolve(null);
+                }
+              })
+              .build();
+            picker.setVisible(true);
+          });
+          return { picked, note };
+        }
+
+        // ---------- status ----------
+        function renderStatus() {
+          $('#st-user').textContent = me ? `${me.name} <${me.email}>` : 'not signed in';
+          if (!token) $('#st-token').textContent = 'none';
+          else {
+            const left = Math.max(0, Math.round((token.expiresAt - Date.now()) / 1000));
+            $('#st-token').textContent = left
+              ? `valid for ${Math.floor(left / 60)} min ${String(left % 60).padStart(2, '0')} s`
+              : 'expired: sign in again';
+          }
+          const problems = [];
+          if (!cfg.clientId) problems.push('no OAuth client ID');
+          if (!cfg.apiKey) problems.push('no API key (needed for the picker)');
+          $('#st-cfg').innerHTML = '';
+          const span = document.createElement('span');
+          if (problems.length) {
+            span.className = 'warn';
+            span.textContent = 'Missing: ' + problems.join(', ');
+          } else {
+            span.textContent = `client ID, API key and project number ${cfg.appId} found`;
+          }
+          $('#st-cfg').append(span);
+        }
+
+        // ---------- steps ----------
+        $('#btn-1').onclick = () =>
+          run('1 Sign in', '#out-1', async () => {
+            const { resp, ms } = await requestToken('select_account');
+            const o = google.accounts.oauth2;
+            const hasFile = o.hasGrantedAllScopes(resp, DRIVE_FILE);
+            const hasAppdata = o.hasGrantedAllScopes(resp, DRIVE_APPDATA);
+            const info = await (async () => {
+              const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${token.value}` },
+              });
+              if (!r.ok) throw new Error(`Could not read your Google profile (HTTP ${r.status})`);
+              return r.json();
+            })();
+            me = { email: String(info.email || '').toLowerCase(), name: info.name || info.email, permissionId: '' };
+            let aboutNote = 'works';
+            try {
+              me.permissionId = (await api('GET', `${DRIVE}/about?fields=user(permissionId)`)).user.permissionId;
+            } catch (e) {
+              aboutNote = 'FAILED ' + e.message;
+            }
+            renderStatus();
+            const detail =
+              `Signed in as ${me.email} (${ms} ms). drive.file: ${hasFile ? 'granted' : 'NOT granted'}; ` +
+              `drive.appdata: ${hasAppdata ? 'granted' : 'NOT granted'}; Drive "about": ${aboutNote}`;
+            if (!hasFile) return { result: 'FAIL', detail: detail + '. Sign in again and tick the Drive boxes.' };
+            return detail;
+          });
+
+        $('#btn-2').onclick = () =>
+          run('2 Create and share', '#out-2', async () => {
+            requireMe();
+            const emails = parseEmails($('#invite').value).filter((e) => e !== me.email);
+            if (!emails.length) throw new Error('Enter the email of at least one other test account');
+            const q = encodeURIComponent(
+              `name = '${FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+            );
+            const found = await api('GET', `${DRIVE}/files?q=${q}&fields=files(id)`);
+            let folderId = found.files && found.files[0] && found.files[0].id;
+            const folderNote = folderId ? 'reused folder (listing app-made files works)' : 'created folder';
+            if (!folderId) {
+              folderId = (
+                await api('POST', `${DRIVE}/files?fields=id`, {
+                  name: FOLDER_NAME,
+                  mimeType: 'application/vnd.google-apps.folder',
+                })
+              ).id;
+            }
+            const file = await api('POST', `${DRIVE}/files?fields=id,name`, {
+              name: `FairShare test – ${new Date().toLocaleString()}`,
+              mimeType: 'application/vnd.google-apps.spreadsheet',
+              parents: [folderId],
+            });
+            setFileId(file.id);
+            const meta = await api('GET', `${SHEETS}/${file.id}?fields=sheets.properties(sheetId,title)`);
+            await api('POST', `${SHEETS}/${file.id}:batchUpdate`, {
+              requests: [
+                {
+                  updateSheetProperties: {
+                    properties: { sheetId: meta.sheets[0].properties.sheetId, title: 'Members' },
+                    fields: 'title',
+                  },
+                },
+                { addSheet: { properties: { title: 'Expenses' } } },
+              ],
+            });
+            await api('POST', `${SHEETS}/${file.id}/values:batchUpdate`, {
+              valueInputOption: 'RAW',
+              data: [
+                { range: 'Members!A1:C2', values: [['email', 'name', 'joinedAt'], [me.email, me.name, new Date().toISOString()]] },
+                { range: 'Expenses!A1:D1', values: [['id', 'description', 'amount', 'addedBy']] },
+              ],
+            });
+            const message = `FairShare feasibility test: you were added to a test group. Open: ${joinLink(file.id)}`;
+            const shared = [];
+            for (const email of emails) {
+              await api(
+                'POST',
+                `${DRIVE}/files/${file.id}/permissions?sendNotificationEmail=true&emailMessage=${encodeURIComponent(message)}&fields=id`,
+                { type: 'user', role: 'writer', emailAddress: email },
+              );
+              shared.push(email);
+            }
+            return `Created "${file.name}" (${folderNote}), added tabs and headers, shared as Editor with ${shared.join(', ')}. Google should email them. Join link: ${joinLink(file.id)}`;
+          });
+
+        $('#btn-3a').onclick = () =>
+          run('3a Access before picker', '#out-3', async () => {
+            requireMe();
+            requireFile();
+            try {
+              await values('Members!A1:C5');
+              return { result: 'NOTE', detail: 'Access WORKED without the picker, so the picker step may not be needed' };
+            } catch (e) {
+              if (e.status === 403 || e.status === 404)
+                return { result: 'NOTE', detail: `Blocked before the picker, as expected (${e.message})` };
+              throw e;
+            }
+          });
+
+        $('#btn-3b').onclick = () =>
+          run('3b Picker (this sheet only)', '#out-3', async () => {
+            requireFile();
+            const { picked, note } = await openPicker((view) => {
+              if (typeof view.setFileIds !== 'function') return 'setFileIds missing, so the picker shows all spreadsheets';
+              view.setFileIds(fileId);
+              return 'picker limited to the test sheet';
+            });
+            if (!picked) return { result: 'NOTE', detail: `Picker closed without selecting (${note})` };
+            if (!picked.some((p) => p.id === fileId))
+              return { result: 'FAIL', detail: `Selected "${picked.map((p) => p.name).join(', ')}", not the test sheet (${note})` };
+            setTimeout(() => $('#btn-3c').click(), 0);
+            return `Selected "${picked[0].name}" (${note})`;
+          });
+
+        $('#btn-3c').onclick = () =>
+          run('3c Read and write', '#out-3', async () => {
+            requireMe();
+            requireFile();
+            const members = (await values('Members!A1:C50')).values || [];
+            const alreadyListed = members.some((r) => String(r[0] || '').toLowerCase() === me.email);
+            if (!alreadyListed) await append('Members!A1', [[me.email, me.name, new Date().toISOString()]]);
+            const id = 'exp-' + Date.now().toString(36);
+            await append('Expenses!A1', [[id, `Test expense by ${me.name}`, 100, me.email]]);
+            const rows = (await values('Expenses!A1:D500')).values || [];
+            if (!rows.some((r) => r[0] === id)) throw new Error('Wrote an expense but could not read it back');
+            return `Read ${members.length - 1} member row(s), ${alreadyListed ? 'already listed' : 'added myself to Members'}, wrote an expense and read it back (${rows.length - 1} expense row(s) now)`;
+          });
+
+        $('#btn-3d').onclick = () =>
+          run('3d Picker search', '#out-3', async () => {
+            const { picked, note } = await openPicker((view) => {
+              view.setOwnedByMe(false);
+              view.setQuery('FairShare');
+              return 'shared-with-me spreadsheets matching "FairShare"';
+            });
+            if (!picked) return { result: 'NOTE', detail: `Picker closed without selecting (${note})` };
+            if (!fileId && picked[0]) setFileId(picked[0].id);
+            return `Selected "${picked.map((p) => p.name).join(', ')}" (${note})`;
+          });
+
+        $('#btn-4').onclick = () =>
+          run('4 Hidden personal file', '#out-4', async () => {
+            requireMe();
+            const q = encodeURIComponent(`name = '${INDEX_NAME}'`);
+            const list = await api('GET', `${DRIVE}/files?spaces=appDataFolder&q=${q}&fields=files(id)`);
+            let id = list.files && list.files[0] && list.files[0].id;
+            const existed = Boolean(id);
+            if (!id) {
+              id = (
+                await api('POST', `${DRIVE}/files?fields=id`, {
+                  name: INDEX_NAME,
+                  parents: ['appDataFolder'],
+                  mimeType: 'application/json',
+                })
+              ).id;
+            }
+            const content = { groups: fileId ? [fileId] : [], savedAt: new Date().toISOString() };
+            await api('PATCH', `${UPLOAD}/files/${id}?uploadType=media`, content);
+            const back = await api('GET', `${DRIVE}/files/${id}?alt=media`);
+            if (!back || back.savedAt !== content.savedAt) throw new Error('Saved the hidden file but read back different content');
+            return `Saved and read back a hidden file in your Drive's app data (${existed ? 'updated the existing one' : 'created it'})`;
+          });
+
+        $('#btn-5a').onclick = () =>
+          run('5a Member invites someone', '#out-5', async () => {
+            requireMe();
+            requireFile();
+            const email = parseEmails($('#extra').value)[0];
+            if (!email) throw new Error('Enter an email first');
+            const f = await api('GET', `${DRIVE}/files/${fileId}?fields=writersCanShare,capabilities(canShare),owners(emailAddress)`);
+            const state = `members may share: ${f.writersCanShare ? 'yes' : 'no'}, I can share: ${f.capabilities && f.capabilities.canShare ? 'yes' : 'no'}`;
+            try {
+              const message = `FairShare feasibility test: ${me.name} added you to a test group. Open: ${joinLink(fileId)}`;
+              await api(
+                'POST',
+                `${DRIVE}/files/${fileId}/permissions?sendNotificationEmail=true&emailMessage=${encodeURIComponent(message)}&fields=id`,
+                { type: 'user', role: 'writer', emailAddress: email },
+              );
+              return `Shared the sheet with ${email} (${state})`;
+            } catch (e) {
+              if (e.status === 403) return { result: 'NOTE', detail: `Could NOT share with ${email}: ${e.message} (${state})` };
+              throw e;
+            }
+          });
+
+        const setWritersCanShare = (allow) => () =>
+          run(allow ? '5c Allow member sharing' : '5b Block member sharing', '#out-5', async () => {
+            requireMe();
+            requireFile();
+            const f = await api('PATCH', `${DRIVE}/files/${fileId}?fields=writersCanShare`, { writersCanShare: allow });
+            return `Members may share: ${f.writersCanShare ? 'yes' : 'no'}`;
+          });
+        $('#btn-5b').onclick = setWritersCanShare(false);
+        $('#btn-5c').onclick = setWritersCanShare(true);
+
+        $('#btn-6').onclick = () =>
+          run('6 Owner sees changes', '#out-6', async () => {
+            requireMe();
+            requireFile();
+            const rows = ((await values('Expenses!A1:D500')).values || []).slice(1);
+            const fromOthers = rows.filter((r) => r[3] && String(r[3]).toLowerCase() !== me.email);
+            const perms = await permissions();
+            const detail = `${rows.length} expense row(s), ${fromOthers.length} written by other accounts. Access: ${describePerms(perms)}`;
+            if (!fromOthers.length) return { result: 'NOTE', detail: detail + ' (run 3c as B first)' };
+            return detail;
+          });
+
+        const askRefresh = () =>
+          ask($('#out-7'), '7 Refresh: what you saw', 'What did you see?', [
+            'Nothing at all',
+            'A window flashed and closed by itself',
+            'A window opened and needed my click',
+            'The browser said a popup was blocked',
+          ]);
+
+        $('#btn-7a').onclick = () =>
+          run('7a Refresh (prompt none)', '#out-7', async () => {
+            requireMe();
+            const { ms } = await requestToken('none', 30000);
+            askRefresh();
+            return `Got new Google access in ${ms} ms`;
+          });
+
+        $('#btn-7b').onclick = () =>
+          run('7b Refresh (default prompt)', '#out-7', async () => {
+            requireMe();
+            const { ms } = await requestToken('', 60000);
+            askRefresh();
+            return `Got new Google access in ${ms} ms`;
+          });
+
+        $('#btn-7c').onclick = () => {
+          if (busy) return;
+          if (!me) return record('7c Refresh without a click', 'FAIL', 'Sign in first (step 1)', $('#out-7'));
+          record('7c Refresh without a click', 'NOTE', 'Asking Google again in 3 seconds, without a click…', $('#out-7'));
+          setTimeout(
+            () =>
+              run('7c Refresh without a click', '#out-7', async () => {
+                const { ms } = await requestToken('', 20000);
+                askRefresh();
+                return `Got new Google access without a click in ${ms} ms`;
+              }).then(() => {
+                if (results[results.length - 1].result === 'FAIL') askRefresh();
+              }),
+            3000,
+          );
+        };
+
+        $('#btn-8a').onclick = () =>
+          run('8a Offer ownership', '#out-8', async () => {
+            requireMe();
+            requireFile();
+            const email = parseEmails($('#handover').value)[0];
+            if (!email) throw new Error("Enter B's email first");
+            const target = (await permissions()).find((p) => String(p.emailAddress || '').toLowerCase() === email);
+            if (!target) throw new Error(`${email} does not have access to the sheet`);
+            const p = await api('PATCH', `${DRIVE}/files/${fileId}/permissions/${target.id}?fields=id,role,pendingOwner`, {
+              role: 'writer',
+              pendingOwner: true,
+            });
+            return `Offered ownership to ${email} (ownership offered: ${p.pendingOwner ? 'yes' : 'no'}). Google may email them too.`;
+          });
+
+        $('#btn-8b').onclick = () =>
+          run('8b Accept ownership', '#out-8', async () => {
+            requireMe();
+            requireFile();
+            if (!me.permissionId) throw new Error('Unknown permission ID (Drive "about" failed in step 1)');
+            await api('PATCH', `${DRIVE}/files/${fileId}/permissions/${me.permissionId}?transferOwnership=true&fields=id,role`, {
+              role: 'owner',
+            });
+            const f = await api('GET', `${DRIVE}/files/${fileId}?fields=owners(emailAddress)`);
+            return `Accepted. Owner is now ${(f.owners || []).map((o) => o.emailAddress).join(', ')}`;
+          });
+
+        $('#btn-8c').onclick = () =>
+          run('8c Who owns it', '#out-8', async () => {
+            requireMe();
+            requireFile();
+            const f = await api('GET', `${DRIVE}/files/${fileId}?fields=owners(emailAddress),writersCanShare`);
+            return `Owner: ${(f.owners || []).map((o) => o.emailAddress).join(', ')}. Access: ${describePerms(await permissions())}`;
+          });
+
+        $('#btn-8d').onclick = () =>
+          run('8d Leave the group', '#out-8', async () => {
+            requireMe();
+            requireFile();
+            if (!me.permissionId) throw new Error('Unknown permission ID (Drive "about" failed in step 1)');
+            await api('DELETE', `${DRIVE}/files/${fileId}/permissions/${me.permissionId}`);
+            try {
+              await values('Members!A1:A2');
+              return { result: 'FAIL', detail: 'Removed my access, but I can still read the sheet' };
+            } catch (e) {
+              return `Left the group; reading the sheet now fails as expected (${e.message})`;
+            }
+          });
+
+        $('#btn-9a').onclick = () =>
+          run('9a Remove access', '#out-9', async () => {
+            requireMe();
+            requireFile();
+            const email = parseEmails($('#remove').value)[0];
+            if (!email) throw new Error('Enter an email first');
+            const target = (await permissions()).find((p) => String(p.emailAddress || '').toLowerCase() === email);
+            if (!target) throw new Error(`${email} does not have access`);
+            await api('DELETE', `${DRIVE}/files/${fileId}/permissions/${target.id}`);
+            return `Removed ${email}'s access. In their profile, run "check my access": it should fail.`;
+          });
+
+        $('#btn-9b').onclick = () =>
+          run('9b Check my access', '#out-9', async () => {
+            requireMe();
+            requireFile();
+            try {
+              const rows = (await values('Expenses!A1:A500')).values || [];
+              return `I can read the sheet (${Math.max(0, rows.length - 1)} expense row(s))`;
+            } catch (e) {
+              if (e.status === 403 || e.status === 404) return { result: 'NOTE', detail: `No access (${e.message})` };
+              throw e;
+            }
+          });
+
+        $('#btn-9c').onclick = () =>
+          run('9c Trash the sheet', '#out-9', async () => {
+            requireMe();
+            requireFile();
+            const f = await api('PATCH', `${DRIVE}/files/${fileId}?fields=trashed`, { trashed: true });
+            return `Moved to trash: ${f.trashed ? 'yes' : 'no'}`;
+          });
+
+        // ---------- misc UI ----------
+        $('#file').addEventListener('change', () => setFileId(parseFileId($('#file').value)));
+        $('#btn-copy-join').onclick = async () => {
+          if (!fileId) return;
+          try {
+            await navigator.clipboard.writeText(joinLink(fileId));
+            $('#btn-copy-join').textContent = 'Copied';
+          } catch {
+            $('#btn-copy-join').textContent = 'Copy failed: select the link above';
+          }
+          setTimeout(() => ($('#btn-copy-join').textContent = 'Copy join link'), 2000);
+        };
+        $('#btn-copy-log').onclick = async () => {
+          renderLog();
+          try {
+            await navigator.clipboard.writeText($('#log').value);
+            $('#btn-copy-log').textContent = 'Copied';
+          } catch {
+            $('#log').select();
+            $('#btn-copy-log').textContent = 'Press Ctrl+C to copy';
+          }
+          setTimeout(() => ($('#btn-copy-log').textContent = 'Copy results'), 2500);
+        };
+        $('#btn-clear-log').onclick = () => {
+          if (!confirm('Clear the results saved in this browser profile?')) return;
+          results = [];
+          store.set('log', results);
+          renderLog();
+        };
+        $('#cfg-client').value = cfg.clientId;
+        $('#cfg-key').value = cfg.apiKey;
+        $('#cfg-app').value = cfg.appId;
+        $('#btn-cfg-save').onclick = () => {
+          store.set('cfg', {
+            clientId: $('#cfg-client').value.trim(),
+            apiKey: $('#cfg-key').value.trim(),
+            appId: $('#cfg-app').value.trim(),
+          });
+          location.reload();
+        };
+        $('#btn-cfg-reset').onclick = () => {
+          store.set('cfg', {});
+          location.reload();
+        };
+
+        // ---------- start ----------
+        setFileId(fileId);
+        renderLog();
+        renderStatus();
+        setInterval(renderStatus, 1000);
+        waitFor(() => window.google && google.accounts && google.accounts.oauth2, 15000).then(
+          () => {
+            if (!cfg.clientId) {
+              $('#st-lib').textContent = 'loaded, but no OAuth client ID configured';
+              return;
+            }
+            tokenClient = google.accounts.oauth2.initTokenClient({
+              client_id: cfg.clientId,
+              scope: SCOPES.join(' '),
+              callback: (resp) =>
+                settle(resp.error ? new Error(`${resp.error}${resp.error_description ? ': ' + resp.error_description : ''}`) : null, resp),
+              error_callback: (err) =>
+                settle(new Error(`Google window problem: ${err.type || 'unknown'}${err.message ? ' (' + err.message + ')' : ''}`)),
+            });
+            $('#st-lib').textContent = 'Google sign-in ready';
+          },
+          () => ($('#st-lib').textContent = 'FAILED to load the Google sign-in library'),
+        );
+      })();
+    </script>
+  </body>
+</html>

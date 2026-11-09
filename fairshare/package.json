@@ -14,7 +14,8 @@
     "build:backend": "npm -w backend run build",
     "push:backend": "npm -w backend run push",
     "test:backend": "npm -w backend test",
-    "typecheck": "npm -w frontend run typecheck && npm -w backend run typecheck"
+    "typecheck": "npm -w frontend run typecheck && npm -w backend run typecheck",
+    "serve": "node scripts/serve.mjs"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
