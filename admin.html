@@ -29,6 +29,24 @@
   <main class="wrap admin-main" id="admin-main" hidden>
 
     <section class="panel">
+      <h2>Tools on the homepage</h2>
+      <p class="muted small" style="margin-top:-0.5rem">
+        Turn a tool off to take it off the homepage for everyone; turn it back on any time. A hidden tool's page
+        still opens from a direct link or bookmark. New tools added in <span class="mono">js/tools.js</span> appear
+        here, switched on.
+      </p>
+      <div id="tools-list" class="admin-tool-list">
+        <p class="loading">Loading tools…</p>
+      </div>
+      <p id="tools-error" class="error" role="alert" hidden></p>
+      <div class="btn-row" style="margin-top:1rem">
+        <button id="save-tools-btn" class="btn primary" disabled>Saved</button>
+        <span id="tools-summary" class="muted small"></span>
+        <span id="tools-status" class="status"></span>
+      </div>
+    </section>
+
+    <section class="panel">
       <h2>DPDC tariff rates</h2>
       <p class="muted small" style="margin-top:-0.5rem">
         Set every rate used by the DPDC Bill Calculator. Structure (voltage levels, consumer
@@ -62,6 +80,6 @@
 
   <p id="auth-checking" class="wrap loading">Checking sign-in…</p>
 
-  <script type="module" src="js/admin.js"></script>
+  <script type="module" src="js/admin.js?v=4"></script>
 </body>
 </html>

@@ -10,9 +10,16 @@ service cloud.firestore {
     }
 
     // Bill-calculator tariff rates. Public can read (the calculator needs
-    // them); only the admin can change them. Tools themselves are defined in
-    // code (js/tools.js), so there is no writable "tools" collection anymore.
+    // them); only the admin can change them.
     match /tariffs/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Site settings, e.g. settings/tools = which tools are hidden from the
+    // homepage. Public can read (the homepage needs it); only the admin can
+    // change them. Tools themselves are defined in code (js/tools.js).
+    match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }

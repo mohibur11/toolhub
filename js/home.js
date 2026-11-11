@@ -1,4 +1,5 @@
-import { TOOLS } from "./tools.js?v=3";
+import { TOOLS } from "./tools.js?v=4";
+import { cachedHidden, fetchHidden } from "./tool-visibility.js?v=4";
 
 const grid = document.getElementById("tool-grid");
 const emptyState = document.getElementById("empty-state");
@@ -34,4 +35,23 @@ function render(tools) {
   }
 }
 
-render(TOOLS);
+// Show every tool except the ones the admin hid; re-render only if the list changed.
+let shown = null;
+function showAllExcept(hidden) {
+  const off = new Set(hidden);
+  const tools = TOOLS.filter((t) => !off.has(t.id));
+  const key = tools.map((t) => t.id).join(",");
+  if (key === shown) return;
+  shown = key;
+  render(tools);
+}
+
+// Paint straight away with what this device saw last time, then check for changes.
+// First visit: wait briefly for the settings; if they can't be read, show every tool.
+const cached = cachedHidden();
+if (cached) showAllExcept(cached);
+fetchHidden({ timeoutMs: cached ? 10000 : 2500 })
+  .then(showAllExcept)
+  .catch(() => {
+    if (!cached) showAllExcept([]);
+  });

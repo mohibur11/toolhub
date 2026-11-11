@@ -1,5 +1,7 @@
 import { getFirebase, isConfigured } from "./firebase-init.js";
 import { DEFAULT_TARIFF, DEFAULT_EFFECTIVE, DEFAULT_VAT, RATE_LABELS, applyOverrides } from "./dpdc-tariff.js";
+import { TOOLS } from "./tools.js?v=4";
+import { SETTINGS_COLLECTION, TOOLS_DOC, rememberHidden } from "./tool-visibility.js?v=4";
 
 const main = document.getElementById("admin-main");
 const checking = document.getElementById("auth-checking");
@@ -9,14 +11,134 @@ const vatInput = document.getElementById("tf-vat");
 const errEl = document.getElementById("tariff-error");
 const saveBtn = document.getElementById("save-tariff-btn");
 const resetBtn = document.getElementById("reset-tariff-btn");
+const toolsListEl = document.getElementById("tools-list");
+const toolsErrEl = document.getElementById("tools-error");
+const saveToolsBtn = document.getElementById("save-tools-btn");
+const toolsSummaryEl = document.getElementById("tools-summary");
 
 let fb = null;
 
 function showError(msg) { errEl.textContent = msg; errEl.hidden = !msg; }
-function flashStatus(msg) {
-  const el = document.getElementById("tariff-status");
+function flashStatus(msg, id = "tariff-status") {
+  const el = document.getElementById(id);
   el.textContent = msg;
   setTimeout(() => { el.textContent = ""; }, 2500);
+}
+
+/* ── Tools on the homepage (show / hide) ──────────────────────────────────
+   Firestore settings/tools holds { hidden: [tool ids] }. Tools themselves are
+   defined in js/tools.js; anything not listed as hidden is shown. */
+const RULES_HELP =
+  "Firestore doesn't allow this yet. Add the “settings” rule from firestore.rules " +
+  "in the Firebase console (README → “Show or hide tools”), then reload.";
+
+let savedHidden = new Set();   // as stored in Firestore
+const hidden = new Set();      // as currently switched in the form
+
+function showToolsError(msg) { toolsErrEl.textContent = msg; toolsErrEl.hidden = !msg; }
+
+const toolsDirty = () =>
+  TOOLS.some((t) => hidden.has(t.id) !== savedHidden.has(t.id));
+
+function updateToolsSummary() {
+  const shown = TOOLS.filter((t) => !hidden.has(t.id)).length;
+  toolsSummaryEl.textContent = `${shown} of ${TOOLS.length} shown on the homepage`;
+  const dirty = toolsDirty();
+  saveToolsBtn.disabled = !dirty;
+  saveToolsBtn.textContent = dirty ? "Save changes" : "Saved";
+}
+
+function buildToolsList() {
+  toolsListEl.innerHTML = "";
+  for (const t of TOOLS) {
+    const row = document.createElement("div");
+    row.className = "admin-tool-row";
+
+    const icon = document.createElement("span");
+    icon.className = "icon";
+    icon.textContent = t.icon || "🧰";
+
+    const info = document.createElement("div");
+    info.className = "info";
+    const name = document.createElement("strong");
+    name.textContent = t.name;
+    const url = document.createElement("span");
+    url.className = "mono";
+    url.textContent = t.url;
+    info.append(name, url);
+
+    const sw = document.createElement("label");
+    sw.className = "switch";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = !hidden.has(t.id);
+    input.setAttribute("aria-label", `Show ${t.name} on the homepage`);
+    const track = document.createElement("span");
+    track.className = "track";
+    const state = document.createElement("span");
+    state.className = "state";
+    const sync = () => {
+      row.classList.toggle("hidden-tool", !input.checked);
+      state.textContent = input.checked ? "Shown" : "Hidden";
+    };
+    input.addEventListener("change", () => {
+      if (input.checked) hidden.delete(t.id);
+      else hidden.add(t.id);
+      sync();
+      updateToolsSummary();
+    });
+    sync();
+    sw.append(input, track, state);
+
+    row.append(icon, info, sw);
+    toolsListEl.appendChild(row);
+  }
+  updateToolsSummary();
+}
+
+async function loadTools() {
+  const { db, dbMod } = fb;
+  const { doc, getDoc } = dbMod;
+  savedHidden = new Set();
+  try {
+    const snap = await getDoc(doc(db, SETTINGS_COLLECTION, TOOLS_DOC));
+    const list = snap.exists() ? snap.data().hidden : null;
+    if (Array.isArray(list)) savedHidden = new Set(list.filter((x) => typeof x === "string"));
+  } catch (err) {
+    showToolsError(err?.code === "permission-denied"
+      ? RULES_HELP
+      : "Couldn't load the tool settings. Check your connection, then reload.");
+  }
+  hidden.clear();
+  savedHidden.forEach((id) => hidden.add(id));
+  buildToolsList();
+}
+
+async function saveTools() {
+  showToolsError("");
+  const { db, dbMod } = fb;
+  const { doc, setDoc, serverTimestamp } = dbMod;
+  // Only ids of tools that still exist, in the order of js/tools.js.
+  const list = TOOLS.map((t) => t.id).filter((id) => hidden.has(id));
+  saveToolsBtn.disabled = true;
+  saveToolsBtn.textContent = "Saving…";
+  try {
+    await setDoc(doc(db, SETTINGS_COLLECTION, TOOLS_DOC), {
+      hidden: list,
+      updatedAt: serverTimestamp(),
+      updatedBy: fb.auth.currentUser?.email || "",
+    });
+    savedHidden = new Set(list);
+    rememberHidden(list); // this device's homepage reflects it right away
+    flashStatus("Saved ✓", "tools-status");
+  } catch (err) {
+    console.error(err);
+    showToolsError(err?.code === "permission-denied"
+      ? RULES_HELP
+      : "Couldn't save. Check your connection and try again.");
+  } finally {
+    updateToolsSummary();
+  }
 }
 
 const fmt = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -163,7 +285,7 @@ async function boot() {
     document.getElementById("admin-email").textContent = user.email || "";
     checking.hidden = true;
     main.hidden = false;
-    await loadTariff();
+    await Promise.all([loadTools(), loadTariff()]);
   });
 
   document.getElementById("logout-btn").addEventListener("click", async () => {
@@ -172,6 +294,11 @@ async function boot() {
   });
   saveBtn.addEventListener("click", saveTariff);
   resetBtn.addEventListener("click", resetToDefaults);
+  saveToolsBtn.addEventListener("click", saveTools);
+  // Don't lose switched-but-unsaved tool changes by accident.
+  window.addEventListener("beforeunload", (e) => {
+    if (toolsDirty()) { e.preventDefault(); e.returnValue = ""; }
+  });
 }
 
 boot();
