@@ -2,13 +2,11 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CURRENCIES } from '@shared/money';
 import { useCreateGroup } from '../api/hooks';
-import { useAuth } from '../auth/AuthContext';
 import EmailChips from '../components/EmailChips';
 import { useToast } from '../components/Toast';
 import { Modal, Spinner } from '../components/ui';
 
 export default function CreateGroupModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { ownerEmail } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
   const create = useCreateGroup();
@@ -28,7 +26,8 @@ export default function CreateGroupModal({ open, onClose }: { open: boolean; onC
           setName('');
           setDescription('');
           setEmails([]);
-          navigate(`/g/${d.group.id}`);
+          // Open the group with the invite dialog, so the link can be sent straight away.
+          navigate(`/g/${d.group.id}`, { state: { invite: d.members.length > 1 } });
         },
       },
     );
@@ -65,11 +64,13 @@ export default function CreateGroupModal({ open, onClose }: { open: boolean; onC
         <div>
           <label className="label">Add members (email)</label>
           <EmailChips value={emails} onChange={setEmails} />
-          <p className="mt-1 text-xs text-slate-500">We'll email each person an invite. They sign in with that Google account to see the group. You can add more people later.</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Use the email of their Google account. Next you'll get a link to send them. You can add more people later.
+          </p>
         </div>
         <p className="text-xs text-slate-500">
-          Group data is stored by the FairShare owner's Google account{ownerEmail && ` (${ownerEmail})`} and is visible to that
-          account. Only group members can see it in the app.
+          The group is saved as a Google Sheet in your Drive and shared only with these people. FairShare has no server, so
+          nobody else can see it.
         </p>
 
         {create.error && <p className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">{create.error.message}</p>}

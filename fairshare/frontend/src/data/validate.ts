@@ -1,6 +1,6 @@
-import { CATEGORIES } from '../../shared/categories';
-import { computeShares, SplitError, validatePayers } from '../../shared/split';
-import type { Expense, ExpenseInput, PaymentInput, SplitMethod } from '../../shared/types';
+import { CATEGORIES } from '@shared/categories';
+import { computeShares, SplitError, validatePayers } from '@shared/split';
+import type { Expense, ExpenseInput, PaymentInput, SplitMethod } from '@shared/types';
 import { invalid } from './errors';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -30,7 +30,7 @@ function memberCheck(emails: string[], active: Set<string>) {
   if (outsider) invalid(`${outsider} is not a member of this group`);
 }
 
-/** Validate an expense from the client and recompute shares server-side (never trust client totals). */
+/** Validate an expense and recompute its shares (never trust totals sent by the UI). */
 export function validateExpense(
   input: ExpenseInput,
   activeMembers: Set<string>,
@@ -42,8 +42,6 @@ export function validateExpense(
   const d = date(input.date);
   if (!METHODS.includes(input.splitMethod)) invalid('Unknown split method');
   const notes = text(input.notes ?? '', 'Notes', 0, 1000);
-  const receiptFileId = String(input.receiptFileId ?? '');
-  if (receiptFileId && !/^[\w-]{10,}$/.test(receiptFileId)) invalid('Invalid receipt');
   try {
     const payers = validatePayers(
       amountMinor,
@@ -57,9 +55,16 @@ export function validateExpense(
         value: s.value === undefined || s.value === null ? undefined : Number(s.value),
       })),
     );
-    memberCheck(payers.map((p) => p.email), activeMembers);
-    memberCheck(shares.map((s) => s.email), activeMembers);
-    return { description, category, amountMinor, date: d, splitMethod: input.splitMethod, payers, shares, notes, receiptFileId };
+    memberCheck(
+      payers.map((p) => p.email),
+      activeMembers,
+    );
+    memberCheck(
+      shares.map((s) => s.email),
+      activeMembers,
+    );
+    // Receipt photos are not part of the no-server version.
+    return { description, category, amountMinor, date: d, splitMethod: input.splitMethod, payers, shares, notes, receiptFileId: '' };
   } catch (e) {
     if (e instanceof SplitError) invalid(e.message);
     throw e;
@@ -77,7 +82,7 @@ export function validatePayment(input: PaymentInput, activeMembers: Set<string>)
   return { from, to, amountMinor, date: date(input.date), note: text(input.note ?? '', 'Note', 0, 200) };
 }
 
-/** Client-generated ids let the frontend show optimistic rows and make retries idempotent. */
+/** IDs made by the UI let it show rows before they are saved, and make retries safe. */
 export function clientIdOr(id: unknown, fallback: () => string): string {
   return typeof id === 'string' && /^[a-zA-Z0-9-]{8,64}$/.test(id) ? id : fallback();
 }

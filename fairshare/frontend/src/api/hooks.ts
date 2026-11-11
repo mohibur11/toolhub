@@ -10,27 +10,87 @@ export const keys = {
   groups: ['groups'] as const,
   group: (id: string) => ['group', id] as const,
   activity: (id: string) => ['activity', id] as const,
-  receipt: (groupId: string, fileId: string) => ['receipt', groupId, fileId] as const,
+  access: (id: string) => ['access', id] as const,
 };
 
+// "No access" won't fix itself by retrying (the user must pick the sheet first), so don't retry it.
+const retry = (count: number, err: Error) => count < 1 && !['NO_ACCESS', 'NEEDS_SIGNIN', 'FORBIDDEN'].includes((err as { code?: string }).code ?? '');
+
+const LIST_CACHE = 'fairshare.groupsCache';
+function cachedList(): ApiActions['listGroups']['res'] | undefined {
+  try {
+    const v = localStorage.getItem(LIST_CACHE);
+    return v ? JSON.parse(v) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** My groups. The last list is kept on this device so the dashboard shows instantly while Google loads. */
 export function useGroups() {
-  return useQuery({ queryKey: keys.groups, queryFn: () => api('listGroups', {}) });
+  return useQuery({
+    queryKey: keys.groups,
+    queryFn: async () => {
+      const list = await api('listGroups', {});
+      try {
+        localStorage.setItem(LIST_CACHE, JSON.stringify(list.filter((g) => !g.error)));
+      } catch {
+        // ignore
+      }
+      return list;
+    },
+    placeholderData: cachedList,
+    retry,
+  });
+}
+
+export function forgetCachedGroups() {
+  try {
+    localStorage.removeItem(LIST_CACHE);
+  } catch {
+    // ignore
+  }
 }
 
 export function useGroup(groupId: string) {
-  return useQuery({ queryKey: keys.group(groupId), queryFn: () => api('getGroup', { groupId }) });
+  return useQuery({ queryKey: keys.group(groupId), queryFn: () => api('getGroup', { groupId }), retry });
 }
 
 export function useActivity(groupId: string) {
-  return useQuery({ queryKey: keys.activity(groupId), queryFn: () => api('getActivity', { groupId, limit: 300 }) });
+  return useQuery({ queryKey: keys.activity(groupId), queryFn: () => api('getActivity', { groupId, limit: 300 }), retry });
 }
 
-export function useReceipt(groupId: string, fileId: string, enabled: boolean) {
-  return useQuery({
-    queryKey: keys.receipt(groupId, fileId),
-    queryFn: () => api('getReceipt', { groupId, fileId }),
-    enabled: enabled && !!fileId,
-    staleTime: Infinity,
+/** Everyone with Google access to the group's sheet. */
+export function useAccess(groupId: string, enabled: boolean) {
+  return useQuery({ queryKey: keys.access(groupId), queryFn: () => api('getAccess', { groupId }), enabled, retry });
+}
+
+export function useRemoveAccess(groupId: string) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (email: string) => api('removeAccess', { groupId, email }),
+    onSuccess: (list) => {
+      qc.setQueryData(keys.access(groupId), list);
+      toast.success('Access removed');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+/** Open a group shared with me (after picking it), or several at once. */
+export function useJoinGroups() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (groupIds: string[]) => {
+      const out = [];
+      for (const groupId of groupIds) out.push(await api('joinGroup', { groupId }));
+      return out;
+    },
+    onSuccess: (details) => {
+      details.forEach((d) => qc.setQueryData(keys.group(d.group.id), d));
+      qc.invalidateQueries({ queryKey: keys.groups });
+    },
   });
 }
 
@@ -77,6 +137,7 @@ export function useGroupWrite<A extends GroupWrite>(groupId: string, action: A) 
       else qc.removeQueries({ queryKey: key });
       qc.invalidateQueries({ queryKey: keys.groups });
       qc.invalidateQueries({ queryKey: keys.activity(groupId) });
+      qc.invalidateQueries({ queryKey: keys.access(groupId) });
     },
   });
 }

@@ -1,58 +1,44 @@
-import type { ApiAction, ApiActions, ApiErrorCode, ApiResponse } from '@shared/types';
-import { API_URL } from '../config';
-
-const TOKEN_KEY = 'fairshare.session';
+// The UI calls `api(action, payload)` as before; actions now run in the browser against Google directly
+// (src/data/actions.ts) instead of going to a server.
+import type { ApiAction, ApiActions, ApiErrorCode } from '@shared/types';
+import { APP_URL } from '../config';
+import { createDataApi, type DataApi } from '../data/actions';
+import { ApiError } from '../data/errors';
+import { googleApi, resetGoogleCaches } from '../google/api';
+import { fetchAccount } from '../google/auth';
 
 export class ApiCallError extends Error {
   constructor(
-    public code: ApiErrorCode | 'NETWORK',
+    public code: ApiErrorCode,
     message: string,
   ) {
     super(message);
   }
 }
 
-let unauthenticatedHandler: (() => void) | null = null;
-export function onUnauthenticated(fn: () => void) {
-  unauthenticatedHandler = fn;
+let data: DataApi | null = null;
+const dataApi = () => (data ??= createDataApi({ google: googleApi, account: fetchAccount, appUrl: APP_URL }));
+
+/** Forget everything cached for the current Google account (sign-out, switching accounts). */
+export function resetApi() {
+  data = null;
+  resetGoogleCaches();
 }
 
-export function getSessionToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setSessionToken(token: string | null) {
-  try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
-  } catch {
-    // storage unavailable (private mode); session lasts for this tab only
-  }
+let needsSignInHandler: (() => void) | null = null;
+export function onNeedsSignIn(fn: () => void) {
+  needsSignInHandler = fn;
 }
 
 export async function api<A extends ApiAction>(action: A, payload: ApiActions[A]['req']): Promise<ApiActions[A]['res']> {
-  if (!API_URL) throw new ApiCallError('INTERNAL', 'VITE_API_URL is not configured');
-  let res: Response;
+  const run = dataApi()[action] as (req: ApiActions[A]['req']) => Promise<ApiActions[A]['res']>;
   try {
-    // text/plain keeps this a "simple" request: Apps Script cannot answer CORS preflights.
-    res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action, token: getSessionToken(), payload }),
-      redirect: 'follow',
-    });
-  } catch {
-    throw new ApiCallError('NETWORK', 'Network error. Check your connection and try again.');
+    return await run(payload);
+  } catch (e) {
+    if (e instanceof ApiError) {
+      if (e.code === 'NEEDS_SIGNIN') needsSignInHandler?.();
+      throw new ApiCallError(e.code, e.message);
+    }
+    throw new ApiCallError('INTERNAL', e instanceof Error ? e.message : String(e));
   }
-  if (!res.ok) throw new ApiCallError('NETWORK', `Server error (${res.status})`);
-  const body = (await res.json()) as ApiResponse<ApiActions[A]['res']>;
-  if (!body.ok) {
-    if (body.error.code === 'UNAUTHENTICATED' && action !== 'login') unauthenticatedHandler?.();
-    throw new ApiCallError(body.error.code, body.error.message);
-  }
-  return body.data;
 }

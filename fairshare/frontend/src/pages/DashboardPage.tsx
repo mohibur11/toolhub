@@ -2,22 +2,43 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatMoney } from '@shared/money';
 import type { GroupSummary } from '@shared/types';
-import { useGroups } from '../api/hooks';
+import { useGroups, useJoinGroups } from '../api/hooks';
 import { useAuth, useMe } from '../auth/AuthContext';
 import CreateGroupModal from './CreateGroupModal';
 import ProfileNameDialog from '../components/ProfileNameDialog';
-import { AppBar, Avatar, AvatarStack, Balance, EmptyState, ErrorState, Icon, ListSkeleton, Page } from '../components/ui';
+import { useToast } from '../components/Toast';
+import { AppBar, Avatar, AvatarStack, Balance, EmptyState, ErrorState, Icon, ListSkeleton, Page, Spinner } from '../components/ui';
 import { TOOLHUB_URL } from '../config';
+import { pickGroupSheets } from '../google/picker';
 import { relativeTime } from '../lib/date';
 
 export default function DashboardPage() {
   const me = useMe();
   const { signOut } = useAuth();
   const groups = useGroups();
+  const join = useJoinGroups();
+  const toast = useToast();
   const [creating, setCreating] = useState(false);
   const [menu, setMenu] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [editingName, setEditingName] = useState(false);
+  const [finding, setFinding] = useState(false);
+
+  // Groups other people shared with you appear here once you open them (invite link) or find them below.
+  const findShared = async () => {
+    setFinding(true);
+    try {
+      const picked = await pickGroupSheets();
+      if (picked.length) {
+        const added = await join.mutateAsync(picked.map((p) => p.id));
+        toast.success(added.length === 1 ? `Added "${added[0].group.name}"` : `Added ${added.length} groups`);
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setFinding(false);
+    }
+  };
 
   const list = groups.data ?? [];
   const active = list.filter((g) => !g.archived);
@@ -77,7 +98,8 @@ export default function DashboardPage() {
           <ErrorState error={groups.error} onRetry={() => groups.refetch()} />
         ) : active.length === 0 ? (
           <EmptyState emoji="🧳" title="No groups yet">
-            Create a group for your next trip, flat or event, and add friends by email.
+            Create a group for your next trip, flat or event, and add friends by email. Invited to a group? Open the link
+            you were sent, or find it below.
           </EmptyState>
         ) : (
           <div className="space-y-3">
@@ -86,6 +108,10 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
+
+        <button className="btn-ghost mt-4 w-full text-sm" onClick={findShared} disabled={finding}>
+          {finding ? <Spinner className="h-4 w-4" /> : <Icon name="search" className="h-4 w-4" />} Find groups shared with me
+        </button>
 
         {archived.length > 0 && (
           <div className="mt-8">
@@ -161,7 +187,11 @@ function GroupCard({ g }: { g: GroupSummary }) {
         </div>
       </div>
       <div className="text-right text-sm">
-        {g.myNetMinor === 0 ? (
+        {g.error ? (
+          <span className="text-xs text-amber-600" title={g.error}>
+            couldn't load
+          </span>
+        ) : g.myNetMinor === 0 ? (
           <span className="text-slate-500">settled up</span>
         ) : (
           <>

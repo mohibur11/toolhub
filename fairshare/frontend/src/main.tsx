@@ -5,7 +5,11 @@ import { HashRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
 import { ToastProvider } from './components/Toast';
+import { finishRedirectSignIn } from './google/auth';
 import './index.css';
+
+// Google's sign-in answer arrives after "#" in the address, where the router keeps its routes: handle it first.
+const redirect = finishRedirectSignIn();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -17,7 +21,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        <AuthProvider>
+        <AuthProvider redirect={redirect}>
           <HashRouter>
             <App />
           </HashRouter>

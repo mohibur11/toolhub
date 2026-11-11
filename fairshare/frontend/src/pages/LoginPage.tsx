@@ -1,46 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { Spinner } from '../components/ui';
-import { GOOGLE_CLIENT_ID, TOOLHUB_URL } from '../config';
+import { TOOLHUB_URL } from '../config';
 
 export default function LoginPage() {
-  const { signInWithGoogleCredential } = useAuth();
-  const buttonRef = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    // The GIS script loads async; poll briefly until it is ready.
-    const init = () => {
-      if (cancelled) return;
-      const gis = window.google?.accounts.id;
-      if (!gis || !buttonRef.current) return void setTimeout(init, 100);
-      gis.initialize({
-        client_id: GOOGLE_CLIENT_ID!,
-        auto_select: true,
-        callback: async ({ credential }) => {
-          setBusy(true);
-          setError('');
-          try {
-            await signInWithGoogleCredential(credential);
-          } catch (e) {
-            setError((e as Error).message);
-            setBusy(false);
-          }
-        },
-      });
-      gis.renderButton(buttonRef.current, { theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', width: 280 });
-      gis.prompt();
-    };
-    init();
-    return () => {
-      cancelled = true;
-    };
-  }, [signInWithGoogleCredential]);
+  const { signIn, signInError } = useAuth();
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-brand-50 to-white px-6 dark:from-slate-900 dark:to-slate-950">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-brand-50 to-white px-6 py-10 dark:from-slate-900 dark:to-slate-950">
       <img src="./icon.svg" alt="" className="mb-6 h-20 w-20 rounded-3xl shadow-lg shadow-brand-600/20" />
       <h1 className="text-3xl font-bold tracking-tight">FairShare</h1>
       <p className="mt-2 max-w-xs text-center text-slate-600 dark:text-slate-300">
@@ -49,21 +14,25 @@ export default function LoginPage() {
       <ul className="mt-8 space-y-2 text-sm text-slate-600 dark:text-slate-300">
         <li>✓ Split equally, by amount, percent or shares</li>
         <li>✓ Simplified “who pays whom” settle-up</li>
-        <li>✓ No setup, just sign in with Google</li>
+        <li>✓ Your data stays in your own Google Drive</li>
       </ul>
-      <div className="mt-10 flex min-h-[44px] items-center justify-center">
-        {busy && (
-          <span className="flex items-center gap-2 text-sm text-slate-600">
-            <Spinner /> Signing you in…
-          </span>
-        )}
-        {/* Keep mounted so the Google-rendered button survives a failed attempt. */}
-        <div ref={buttonRef} className={busy ? 'hidden' : ''} />
-      </div>
-      {error && <p className="mt-4 max-w-xs text-center text-sm text-rose-600">{error}</p>}
-      <p className="mt-8 max-w-xs text-center text-xs text-slate-500">
-        Sign-in shares only your name, email and profile photo. Group data is stored in the FairShare owner's Google account and
-        is visible to that account; in the app, only your group's members see it.
+      <button
+        onClick={signIn}
+        className="mt-10 flex items-center gap-3 rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 active:scale-[0.98] dark:bg-white dark:text-slate-900"
+      >
+        <svg viewBox="0 0 48 48" className="h-5 w-5" aria-hidden="true">
+          <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+          <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+          <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+          <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+        </svg>
+        Continue with Google
+      </button>
+      {signInError && <p className="mt-4 max-w-xs text-center text-sm text-rose-600">{signInError}</p>}
+      <p className="mt-8 max-w-sm text-center text-xs text-slate-500">
+        Google will ask to let FairShare use <b>only the files it creates or you open with it</b>, plus a small hidden settings file.
+        Each group is a Google Sheet in its creator's Drive, shared only with the group. FairShare has no server: nobody else,
+        including the app's author, can see your data.
       </p>
       <p className="mt-4 text-xs text-slate-400">
         Free forever · no ads ·{' '}

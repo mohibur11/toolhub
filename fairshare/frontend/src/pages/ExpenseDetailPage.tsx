@@ -1,11 +1,10 @@
-import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { categoryOf } from '@shared/categories';
 import { formatMoney } from '@shared/money';
 import type { Expense, GroupDetail } from '@shared/types';
-import { useActivity, useGroup, useGroupWrite, useReceipt } from '../api/hooks';
+import { useActivity, useGroup, useGroupWrite } from '../api/hooks';
 import { useMe } from '../auth/AuthContext';
-import { AppBar, Avatar, ErrorState, Icon, ListSkeleton, Modal, Page, Spinner } from '../components/ui';
+import { AppBar, Avatar, ErrorState, Icon, ListSkeleton, Page } from '../components/ui';
 import { formatDate, relativeTime } from '../lib/date';
 import { nameResolver } from '../lib/names';
 
@@ -51,7 +50,6 @@ function Detail({ d, e }: { d: GroupDetail; e: Expense }) {
   const del = useGroupWrite(d.group.id, 'deleteExpense');
   const restore = useGroupWrite(d.group.id, 'restoreExpense');
   const activity = useActivity(d.group.id);
-  const [showReceipt, setShowReceipt] = useState(false);
   const name = nameResolver(d.members, me.email);
   const member = (email: string) => d.members.find((m) => m.email === email);
   const cur = d.group.currency;
@@ -116,14 +114,9 @@ function Detail({ d, e }: { d: GroupDetail; e: Expense }) {
         })}
       </div>
 
-      {(e.notes || e.receiptFileId) && (
-        <div className="card space-y-3 p-4">
-          {e.notes && <p className="whitespace-pre-wrap text-sm">{e.notes}</p>}
-          {e.receiptFileId && (
-            <button className="btn-secondary w-full" onClick={() => setShowReceipt(true)}>
-              <Icon name="receipt" className="h-4 w-4" /> View receipt
-            </button>
-          )}
+      {e.notes && (
+        <div className="card p-4">
+          <p className="whitespace-pre-wrap text-sm">{e.notes}</p>
         </div>
       )}
 
@@ -154,25 +147,6 @@ function Detail({ d, e }: { d: GroupDetail; e: Expense }) {
           <Icon name="trash" className="h-4 w-4" /> Delete expense
         </button>
       )}
-
-      <ReceiptModal groupId={d.group.id} fileId={e.receiptFileId} open={showReceipt} onClose={() => setShowReceipt(false)} />
     </div>
-  );
-}
-
-function ReceiptModal({ groupId, fileId, open, onClose }: { groupId: string; fileId: string; open: boolean; onClose: () => void }) {
-  const r = useReceipt(groupId, fileId, open);
-  return (
-    <Modal open={open} onClose={onClose} title="Receipt">
-      {r.isLoading ? (
-        <div className="flex justify-center py-16 text-brand-600">
-          <Spinner className="h-8 w-8" />
-        </div>
-      ) : r.error ? (
-        <p className="text-sm text-rose-600">{r.error.message}</p>
-      ) : r.data ? (
-        <img src={`data:${r.data.mimeType};base64,${r.data.base64}`} alt="Receipt" className="w-full rounded-xl" />
-      ) : null}
-    </Modal>
   );
 }

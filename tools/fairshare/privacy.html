@@ -63,62 +63,87 @@
       </header>
       <article>
         <h1>Privacy Policy</h1>
-        <p class="meta">Last updated: 25 October 2026</p>
+        <p class="meta">Last updated: 11 November 2026</p>
 
         <p>
           FairShare is a free tool for tracking shared expenses within groups of friends. It is a personal, non-commercial
           project published on Toolhub. This page explains what data FairShare handles and how.
         </p>
 
-        <h2>What we collect</h2>
+        <h2>How FairShare works</h2>
+        <p>
+          FairShare has <strong>no server</strong>. The app runs entirely in your browser and talks directly to Google with your
+          own Google sign-in. Nothing you enter is sent to the app's author or to anyone else, and the author has no access to
+          your groups.
+        </p>
+
+        <h2>Google permissions it asks for</h2>
         <ul>
+          <li><strong>Your name, email address and profile photo</strong>, to show who added what in a group.</li>
           <li>
-            <strong>From Google sign-in:</strong> your name, email address and profile photo. FairShare requests no other
-            Google permissions. It cannot read your Gmail, Drive, contacts or any other Google data.
+            <strong>Google Drive, only the files FairShare creates or that you open with it</strong> (<code>drive.file</code>).
+            This is how FairShare creates a group's Google Sheet and opens groups shared with you after you select them in
+            Google's file picker. It cannot see or change any of your other Drive files.
           </li>
           <li>
-            <strong>What you and your group members enter:</strong> group names, member email addresses, expenses (descriptions,
-            amounts, dates, categories, notes, how they are split), payments between members and optional receipt photos.
-          </li>
-          <li>
-            <strong>Activity history:</strong> a log of who added, edited or deleted what in each group, so members can see changes.
+            <strong>Its own hidden settings file in your Drive</strong> (<code>drive.appdata</code>), which keeps your list of groups
+            and the name you chose in FairShare, so they follow you across devices. Only FairShare can read it.
           </li>
         </ul>
+        <p>FairShare cannot read your Gmail, contacts or any other Google data.</p>
 
-        <h2>Where it is stored</h2>
-        <p>
-          All data is stored in Google Sheets and Google Drive belonging to the Google account that runs FairShare (the
-          "owner account"), and is processed by a Google Apps Script program running under that account. Google's own
-          privacy policy applies to that storage.
-        </p>
+        <h2>Where your data is stored</h2>
+        <ul>
+          <li>
+            <strong>Each group is a Google Sheet in its creator's Google Drive</strong> (the group owner), shared with edit access
+            with the group's members. It holds the members' emails, names and profile photo links, the expenses (descriptions,
+            amounts, dates, categories, notes, how they are split), payments between members, and an activity history.
+          </li>
+          <li><strong>Your list of groups and your FairShare name</strong> are in the hidden settings file in your own Drive.</li>
+        </ul>
+        <p>Google stores these files under its own privacy policy and terms.</p>
 
         <h2>Who can see your data</h2>
         <ul>
-          <li><strong>Members of your group</strong> can see that group's members, expenses, payments, receipts and activity in the app.</li>
-          <li><strong>The owner account</strong> that runs FairShare can technically access all stored data.</li>
-          <li>People outside your group cannot see your group's data in the app.</li>
+          <li>
+            <strong>Members of a group</strong> can see everything in that group, in the app and in its Google Sheet (they have edit
+            access to the sheet, as in any shared Google file).
+          </li>
+          <li><strong>The group owner</strong> owns the sheet in their Drive.</li>
+          <li><strong>Nobody else.</strong> FairShare has no server and no admin account with access to your groups.</li>
         </ul>
+
+        <h2>Limited Use</h2>
+        <p>
+          FairShare's use and transfer of information received from Google APIs adheres to the
+          <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>,
+          including the Limited Use requirements. Google user data is used only to provide FairShare's features to you, is
+          never sold, never used for advertising, and never transferred to anyone except as needed to share a group with the
+          members you choose.
+        </p>
 
         <h2>What we don't do</h2>
         <ul>
           <li>No ads, no tracking or analytics scripts, no selling or sharing of data with third parties.</li>
-          <li>Your data is used only to provide FairShare's features.</li>
         </ul>
 
         <h2>Data on your device</h2>
         <p>
-          FairShare keeps a sign-in session token and your basic profile in your browser's local storage so you stay signed
-          in (sessions last up to 30 days). Signing out removes them. The app may also be cached on your device so it loads
-          quickly.
+          FairShare keeps your Google access (which expires after about an hour), your basic profile and a copy of your group
+          list in your browser's local storage, so it starts quickly. Signing out removes them. The app itself may also be
+          cached on your device so it loads quickly.
         </p>
 
         <h2>Retention and deletion</h2>
         <ul>
-          <li>A group's owner can permanently delete the group from its settings. This removes its expenses, payments and receipts.</li>
-          <li>Deleted files are purged from Google Drive trash within 30 days.</li>
-          <li>Weekly backups are kept for about 8 weeks, so deleted data fully disappears within that time.</li>
-          <li>Any member with a settled balance can leave a group.</li>
-          <li>To have your account details (name, email, photo) removed, contact us using the link below.</li>
+          <li>A group's owner can delete the group from its settings. Its sheet goes to the owner's Google Drive trash, which Google empties after 30 days, and members lose access.</li>
+          <li>Any member with a settled balance can leave a group; they are marked as having left and lose access to its sheet.</li>
+          <li>
+            You can remove FairShare's access at any time at
+            <a href="https://myaccount.google.com/connections" rel="noopener">myaccount.google.com/connections</a>, and delete its
+            hidden settings file in Google Drive under Settings → Manage apps → FairShare → Delete hidden app data.
+          </li>
+          <li>Group sheets you own stay in your Drive like any other file, until you or the app deletes them.</li>
         </ul>
 
         <h2>Children</h2>

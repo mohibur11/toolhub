@@ -1,17 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CATEGORIES } from '@shared/categories';
 import { currencyInfo, formatMoney, minorToInput, toMinor } from '@shared/money';
 import { computeShares, SplitError, validatePayers } from '@shared/split';
 import type { Expense, ExpenseInput, GroupDetail, Member, Payer, Share, SplitInput, SplitMethod } from '@shared/types';
-import { api } from '../api/client';
 import { useGroup, useGroupWrite } from '../api/hooks';
 import { useMe } from '../auth/AuthContext';
 import { useToast } from '../components/Toast';
-import { AppBar, Avatar, ErrorState, Icon, ListSkeleton, Page, Spinner } from '../components/ui';
+import { AppBar, Avatar, ErrorState, ListSkeleton, Page } from '../components/ui';
 import { todayIso } from '../lib/date';
 import { newId } from '../lib/id';
-import { compressImage } from '../lib/image';
 
 const METHODS: { id: SplitMethod; label: string; hint: string }[] = [
   { id: 'EQUAL', label: 'Equally', hint: 'Split evenly between selected people' },
@@ -100,9 +98,6 @@ function ExpenseForm({ d, existing }: { d: GroupDetail; existing?: Expense }) {
   const [date, setDate] = useState(init.date);
   const [category, setCategory] = useState(init.category);
   const [notes, setNotes] = useState(init.notes);
-  const [receiptFileId, setReceiptFileId] = useState(init.receiptFileId);
-  const [receiptPreview, setReceiptPreview] = useState('');
-  const [uploading, setUploading] = useState(false);
   const [multiPayer, setMultiPayer] = useState(init.multiPayer);
   const [payer, setPayer] = useState(init.payer);
   const [payerAmounts, setPayerAmounts] = useState<Values>(init.payerAmounts);
@@ -111,7 +106,6 @@ function ExpenseForm({ d, existing }: { d: GroupDetail; existing?: Expense }) {
   const [values, setValues] = useState(init.values);
   const [showCategories, setShowCategories] = useState(false);
   const [showNotes, setShowNotes] = useState(!!init.notes);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const amountMinor = toMinor(amount, cur);
   const amountOk = Number.isInteger(amountMinor) && amountMinor > 0;
@@ -163,23 +157,7 @@ function ExpenseForm({ d, existing }: { d: GroupDetail; existing?: Expense }) {
 
   const payerRemaining = multiPayer && amountOk ? amountMinor - payers.reduce((a, p) => a + (Number.isFinite(p.amountMinor) ? p.amountMinor : 0), 0) : 0;
 
-  const onReceipt = async (file: File | undefined) => {
-    if (!file) return;
-    setUploading(true);
-    try {
-      const { base64, dataUrl } = await compressImage(file);
-      const { fileId } = await api('uploadReceipt', { groupId: d.group.id, base64, mimeType: 'image/jpeg', fileName: file.name });
-      setReceiptFileId(fileId);
-      setReceiptPreview(dataUrl);
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  };
-
-  const canSave = !!description.trim() && amountOk && !error && !uploading;
+  const canSave = !!description.trim() && amountOk && !error;
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -193,7 +171,7 @@ function ExpenseForm({ d, existing }: { d: GroupDetail; existing?: Expense }) {
       payers: payers.filter((p) => p.amountMinor > 0),
       splitInputs,
       notes,
-      receiptFileId,
+      receiptFileId: '',
     };
     if (existing) {
       update.mutate({ expenseId: existing.id, expense: input }, { onSuccess: () => toast.success('Expense updated') });
@@ -365,31 +343,6 @@ function ExpenseForm({ d, existing }: { d: GroupDetail; existing?: Expense }) {
 
       {/* Extras */}
       <div className="card space-y-3 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-medium">Receipt</span>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onReceipt(e.target.files?.[0])} />
-          {receiptFileId ? (
-            <div className="flex items-center gap-2">
-              {receiptPreview ? <img src={receiptPreview} alt="Receipt" className="h-10 w-10 rounded-lg object-cover" /> : <Icon name="receipt" className="h-5 w-5 text-brand-600" />}
-              <span className="text-xs text-slate-500">Attached</span>
-              <button
-                type="button"
-                className="btn-ghost text-xs"
-                onClick={() => {
-                  setReceiptFileId('');
-                  setReceiptPreview('');
-                }}
-              >
-                Remove
-              </button>
-            </div>
-          ) : (
-            <button type="button" className="btn-secondary py-2 text-xs" disabled={uploading} onClick={() => fileRef.current?.click()}>
-              {uploading ? <Spinner className="h-3.5 w-3.5" /> : <Icon name="receipt" className="h-4 w-4" />}
-              {uploading ? 'Uploading…' : 'Add photo'}
-            </button>
-          )}
-        </div>
         {showNotes ? (
           <textarea className="input" rows={2} maxLength={1000} placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
         ) : (

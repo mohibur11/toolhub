@@ -1,6 +1,6 @@
 // Serves the whole Toolhub site at http://localhost:5173, the origin Google sign-in already allows,
-// so pages under tools/ (and their ../../js/fairshare-config.js) work exactly as on GitHub Pages.
-// Usage (from fairshare/): npm run serve
+// so the built app under tools/fairshare/ (and its ../../js/fairshare-config.js) works exactly as on GitHub Pages.
+// Usage (from fairshare/): npm run build && npm run serve
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
@@ -49,6 +49,6 @@ createServer(async (req, res) => {
   }
 }).listen(port, 'localhost', () => {
   console.log(`Toolhub served from ${root}`);
-  console.log(`Feasibility test: http://localhost:${port}/tools/fairshare-spike/`);
+  console.log(`FairShare (built): http://localhost:${port}/tools/fairshare/`);
   console.log('Press Ctrl+C to stop.');
 });

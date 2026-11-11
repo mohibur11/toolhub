@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { categoryOf } from '@shared/categories';
 import { formatMoney } from '@shared/money';
 import type { Expense, GroupDetail, Payment, Transfer } from '@shared/types';
 import { useActivity, useGroup, useGroupWrite } from '../api/hooks';
 import { useMe } from '../auth/AuthContext';
+import InviteDialog from '../components/InviteDialog';
+import JoinGroup from '../components/JoinGroup';
 import PaymentModal from '../components/PaymentModal';
+import { useToast } from '../components/Toast';
 import { AppBar, Avatar, Balance, EmptyState, ErrorState, Fab, Icon, ListSkeleton, Page, Skeleton, Spinner, Tabs } from '../components/ui';
 import { dayParts, monthLabel, relativeTime } from '../lib/date';
 import { nameResolver } from '../lib/names';
@@ -19,17 +22,27 @@ export default function GroupPage() {
   const me = useMe();
   const q = useGroup(groupId);
   const d = q.data;
+  const location = useLocation();
+  const [inviting, setInviting] = useState(() => !!(location.state as { invite?: boolean } | null)?.invite);
+  const noAccess = (q.error as { code?: string } | null)?.code === 'NO_ACCESS';
 
   return (
     <>
       <AppBar
         back="/"
-        title={d?.group.name ?? 'Loading…'}
+        title={d?.group.name ?? (noAccess ? 'Join group' : 'Loading…')}
         subtitle={d ? `${d.members.filter((m) => m.active).length} members · ${d.group.currency}` : undefined}
         right={
-          <Link to={`/g/${groupId}/settings`} className="btn-ghost" aria-label="Group settings">
-            <Icon name="settings" />
-          </Link>
+          d && (
+            <>
+              <button className="btn-ghost" onClick={() => setInviting(true)} aria-label="Invite people">
+                <Icon name="userPlus" />
+              </button>
+              <Link to={`/g/${groupId}/settings`} className="btn-ghost" aria-label="Group settings">
+                <Icon name="settings" />
+              </Link>
+            </>
+          )
         }
       />
       <Page>
@@ -38,10 +51,13 @@ export default function GroupPage() {
             <Skeleton className="mb-4 h-24" />
             <ListSkeleton />
           </>
+        ) : noAccess ? (
+          <JoinGroup groupId={groupId} />
         ) : q.error || !d ? (
           <ErrorState error={q.error ?? new Error('Group not found')} onRetry={() => q.refetch()} />
         ) : (
           <>
+            {d.group.pendingOwner === me.email && <OwnershipOffer d={d} />}
             <MyBalanceCard d={d} me={me.email} />
             <div className="my-4">
               <Tabs
@@ -63,7 +79,29 @@ export default function GroupPage() {
         )}
       </Page>
       {d && !d.group.archived && <Fab to={`/g/${groupId}/expense/new`} label="Add expense" />}
+      {d && <InviteDialog open={inviting} onClose={() => setInviting(false)} groupId={groupId} groupName={d.group.name} />}
     </>
+  );
+}
+
+function OwnershipOffer({ d }: { d: GroupDetail }) {
+  const accept = useGroupWrite(d.group.id, 'acceptOwnership');
+  const toast = useToast();
+  const owner = d.members.find((m) => m.email === d.group.ownerEmail)?.displayName ?? d.group.ownerEmail;
+  return (
+    <div className="card mb-4 bg-brand-50 p-4 text-sm ring-brand-200 dark:bg-brand-950/40 dark:ring-brand-900">
+      <p>
+        <b>{owner}</b> wants to make you the owner of this group. Its Google Sheet will move to your Drive, and you'll manage the
+        members.
+      </p>
+      <button
+        className="btn-primary mt-3"
+        disabled={accept.isPending}
+        onClick={() => accept.mutate({}, { onSuccess: () => toast.success("You're now the owner") })}
+      >
+        {accept.isPending ? <Spinner className="h-4 w-4" /> : 'Become the owner'}
+      </button>
+    </div>
   );
 }
 
@@ -217,7 +255,7 @@ function ExpenseRow({ e, d, me }: { e: Expense; d: GroupDetail; me: string }) {
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xl dark:bg-slate-800">{cat.emoji}</div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">
-          {e.description} {e.receiptFileId && <Icon name="receipt" className="inline h-3.5 w-3.5 text-slate-400" />}
+          {e.description}
         </p>
         <p className="truncate text-xs text-slate-500">
           {payerText} {formatMoney(e.amountMinor, cur)}

@@ -1,20 +1,16 @@
 {
   "name": "fairshare",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "workspaces": [
-    "frontend",
-    "backend"
+    "frontend"
   ],
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "npm -w frontend run dev",
     "build": "npm -w frontend run build",
-    "build:backend": "npm -w backend run build",
-    "push:backend": "npm -w backend run push",
-    "test:backend": "npm -w backend test",
-    "typecheck": "npm -w frontend run typecheck && npm -w backend run typecheck",
+    "typecheck": "npm -w frontend run typecheck",
     "serve": "node scripts/serve.mjs"
   },
   "devDependencies": {

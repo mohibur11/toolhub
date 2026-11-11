@@ -1,4 +1,5 @@
-// Domain + API types shared by frontend and backend.
+// Domain + API types. The "API" is the browser data layer (frontend/src/data), which reads and writes each
+// group's Google Sheet directly with the user's own Google access. There is no FairShare server.
 
 export type SplitMethod = 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES';
 
@@ -31,6 +32,7 @@ export interface Member {
   pictureUrl?: string;
   role: 'owner' | 'member';
   active: boolean;
+  /** When the member first opened the group; empty while they are only invited. */
   joinedAt: string;
 }
 
@@ -83,6 +85,7 @@ export interface ActivityEntry {
 }
 
 export interface GroupInfo {
+  /** The group's Google Sheets file ID. */
   id: string;
   name: string;
   description: string;
@@ -91,7 +94,10 @@ export interface GroupInfo {
   createdAt: string;
   simplifyDebts: boolean;
   archived: boolean;
-  version: number;
+  /** Google account that owns the sheet (the group owner). */
+  ownerEmail: string;
+  /** Member who has been offered ownership and hasn't accepted yet, or ''. */
+  pendingOwner: string;
 }
 
 export interface GroupDetail {
@@ -114,6 +120,8 @@ export interface GroupSummary {
   myNetMinor: number;
   archived: boolean;
   lastActivityAt: string;
+  /** Set when the group couldn't be loaded just now (e.g. no connection); the other fields are placeholders. */
+  error?: string;
 }
 
 export interface User {
@@ -145,15 +153,24 @@ export interface PaymentInput {
   note: string;
 }
 
-/** Request payload + response data for every API action. */
+/** Someone with Google access to a group's sheet, and whether they are in the member list. */
+export interface AccessEntry {
+  email: string;
+  role: string; // owner | writer | commenter | reader
+  pendingOwner: boolean;
+  member: 'active' | 'removed' | 'none';
+}
+
+/** Request payload + response data for every data action. */
 export interface ApiActions {
-  login: { req: { idToken: string }; res: { sessionToken: string; user: User; ownerEmail: string } };
-  me: { req: Record<string, never>; res: { user: User; ownerEmail: string } };
+  me: { req: Record<string, never>; res: { user: User } };
   listGroups: { req: Record<string, never>; res: GroupSummary[] };
   createGroup: {
     req: { name: string; description: string; currency: string; memberEmails: string[] };
     res: GroupDetail;
   };
+  /** Open a group shared with me (after picking it in Google's file picker): adds me to its members if needed. */
+  joinGroup: { req: { groupId: string }; res: GroupDetail };
   deleteGroup: { req: { groupId: string; confirmName: string }; res: null };
   /** Set your own FairShare name everywhere; '' resets to your Google name. */
   updateProfile: { req: { name: string }; res: { user: User } };
@@ -174,24 +191,27 @@ export interface ApiActions {
   addPayment: { req: { groupId: string; payment: PaymentInput; clientId?: string }; res: GroupDetail };
   deletePayment: { req: { groupId: string; paymentId: string }; res: GroupDetail };
   getActivity: { req: { groupId: string; limit?: number }; res: ActivityEntry[] };
-  uploadReceipt: {
-    req: { groupId: string; base64: string; mimeType: string; fileName: string };
-    res: { fileId: string };
-  };
-  getReceipt: { req: { groupId: string; fileId: string }; res: { base64: string; mimeType: string } };
+  /** Owner offers ownership of the group (its sheet) to another member. */
+  offerOwnership: { req: { groupId: string; email: string }; res: GroupDetail };
+  cancelOwnershipOffer: { req: { groupId: string }; res: GroupDetail };
+  /** The member who was offered ownership accepts it. */
+  acceptOwnership: { req: { groupId: string }; res: GroupDetail };
+  /** Everyone with Google access to the group's sheet (owner only). */
+  getAccess: { req: { groupId: string }; res: AccessEntry[] };
+  /** Owner removes someone's Google access who isn't (or is no longer) a member. */
+  removeAccess: { req: { groupId: string; email: string }; res: AccessEntry[] };
 }
 
 export type ApiAction = keyof ApiActions;
 
 export type ApiErrorCode =
-  | 'UNAUTHENTICATED'
+  /** Google sign-in expired; a tap is needed to continue. */
+  | 'NEEDS_SIGNIN'
+  /** This Google account can't open the group's sheet (not shared with it, removed, or not picked yet). */
+  | 'NO_ACCESS'
   | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'INVALID'
   | 'CONFLICT'
   | 'BUSY'
   | 'INTERNAL';
-
-export type ApiResponse<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: { code: ApiErrorCode; message: string } };
