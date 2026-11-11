@@ -102,9 +102,10 @@
     <main>
       <h1>FairShare feasibility test</h1>
       <p class="muted">
-        Throwaway page. Checks that FairShare can work with <b>no server and no admin access</b>: each person's browser
-        uses their own Google permission (<code>drive.file</code>). Use a <b>separate Chrome profile</b> for each test
-        account (not incognito). Every step records its result below; at the end each profile copies its results.
+        Throwaway page (round 2). Checks that FairShare can work with <b>no server and no admin access</b>: each
+        person's browser uses their own Google permission (<code>drive.file</code>). Use a <b>separate Chrome profile</b>
+        for each test account (not incognito). Every step records its result below; at the end each profile copies its
+        results.
       </p>
 
       <section class="card">
@@ -120,6 +121,10 @@
         </div>
         <p class="muted">Join link for the other accounts: <code id="join"></code></p>
         <button class="secondary" id="btn-copy-join">Copy join link</button>
+        <div id="phone-row">
+          <p class="muted">Phone link (works once this page is pushed to GitHub): <code id="join-phone"></code></p>
+          <button class="secondary" id="btn-copy-phone">Copy phone link</button>
+        </div>
         <details>
           <summary>Settings (only if the config file is missing values)</summary>
           <label for="cfg-client">OAuth client ID</label>
@@ -147,7 +152,10 @@
 
       <section class="card">
         <h2><span class="badge a">Account A</span> 2. Create a test group and invite</h2>
-        <p>Creates a sheet in A's Drive (folder "FairShare test") and shares it as Editor. Google emails each person.</p>
+        <p>
+          Creates a sheet at the top of A's My Drive (no folder, as the real app will) and shares it as Editor. Google
+          emails each person a link that also works on phones.
+        </p>
         <label for="invite">Emails of the other test accounts (B, and C if you have one)</label>
         <input id="invite" placeholder="b-account@gmail.com, c-account@gmail.com" autocomplete="off" />
         <button id="btn-2">Create sheet and share</button>
@@ -172,6 +180,13 @@
           <li>
             <button class="secondary" id="btn-3d">d. (Optional) Find shared groups by search</button>
             <span class="muted">Picker listing sheets shared with you whose name contains "FairShare".</span>
+          </li>
+          <li>
+            <button id="btn-3e">e. Pick on Google's own page instead</button>
+            <span class="muted">
+              Alternative to b, for phones: this page goes to Google, you select the sheet there, and you come back.
+              Step c runs right after.
+            </span>
           </li>
         </ol>
         <div class="out" id="out-3"></div>
@@ -209,7 +224,12 @@
         </p>
         <button id="btn-7a">a. New access now (prompt: none)</button>
         <button id="btn-7b">b. New access now (default prompt)</button>
-        <button class="secondary" id="btn-7c">c. New access in 3 s, without a click</button>
+        <button class="secondary" id="btn-7c">c. New access in 10 s, without a click</button>
+        <p>
+          <b>d. Opening the app later.</b> Reloads this page, then signs in by sending the whole page to Google and back
+          (no popup, no click), the way the real app would when it starts.
+        </p>
+        <button id="btn-7d">d. Reload and sign in automatically</button>
         <div class="out" id="out-7"></div>
       </section>
 
@@ -242,11 +262,12 @@
       </section>
 
       <section class="card">
-        <h2><span class="badge">Optional</span> 10. Phone</h2>
+        <h2><span class="badge">Phone</span> 10. Phone</h2>
         <p class="muted">
-          Needs this page online (push to GitHub) at
-          <code>https://mohibur11.github.io/toolhub/tools/fairshare-spike/</code>. On the phone, open the join link,
-          sign in as B or C, then run 3b and 3c. Tells us whether the Google picker works on mobile.
+          Needs this page online at <code>https://mohibur11.github.io/toolhub/tools/fairshare-spike/</code> (push to
+          GitHub first). On the phone, open Google's invite email and tap the link, then run step 1, then 3b (if that
+          picker can't be used, 3e). Step 3c runs by itself after a successful pick. Then run 7d, and finally 8d to
+          leave. Copy the results.
         </p>
       </section>
 
@@ -271,8 +292,11 @@
         const DRIVE_FILE = 'https://www.googleapis.com/auth/drive.file';
         const DRIVE_APPDATA = 'https://www.googleapis.com/auth/drive.appdata';
         const SCOPES = ['openid', 'email', 'profile', DRIVE_FILE, DRIVE_APPDATA];
-        const FOLDER_NAME = 'FairShare test';
         const INDEX_NAME = 'fairshare-spike-index.json';
+        const PUBLIC_PAGE = 'https://mohibur11.github.io/toolhub/tools/fairshare-spike/';
+        const PAGE_ROUND = 2;
+        // Must be listed under "Authorized redirect URIs" of the OAuth client (steps 3e and 7d).
+        const REDIRECT_URI = location.origin + location.pathname;
 
         // ---------- storage (per Chrome profile) ----------
         const store = {
@@ -292,6 +316,29 @@
             }
           },
         };
+        // Per-tab storage that survives the trip to Google and back (steps 3e and 7d).
+        const tab = {
+          get(key) {
+            try {
+              return JSON.parse(sessionStorage.getItem('fs-spike.' + key) || 'null');
+            } catch {
+              return null;
+            }
+          },
+          set(key, value) {
+            try {
+              if (value === null) sessionStorage.removeItem('fs-spike.' + key);
+              else sessionStorage.setItem('fs-spike.' + key, JSON.stringify(value));
+            } catch {
+              // sessionStorage unavailable
+            }
+          },
+          take(key) {
+            const value = tab.get(key);
+            tab.set(key, null);
+            return value;
+          },
+        };
 
         // ---------- config ----------
         const filled = (v) => (v && !String(v).startsWith('PASTE') ? String(v).trim() : '');
@@ -305,8 +352,11 @@
         cfg.appId = overrides.appId || (cfg.clientId.match(/^(\d+)-/) || [])[1] || '';
 
         // ---------- state ----------
-        let token = null; // { value, expiresAt }
-        let me = null; // { email, name, permissionId }
+        const restored = tab.get('session');
+        const restoredLive = Boolean(restored && restored.token && Date.now() < restored.token.expiresAt);
+        let token = restoredLive ? restored.token : null; // { value, expiresAt }
+        let me = restoredLive ? restored.me : null; // { email, name, permissionId }
+        const saveSession = () => tab.set('session', { token, me });
         let tokenClient = null;
         let pending = null;
         let busy = false;
@@ -320,12 +370,15 @@
             .filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
         let fileId = parseFileId(new URLSearchParams(location.search).get('file')) || store.get('fileId', '');
         const joinLink = (id) => `${location.origin}${location.pathname}?file=${id}`;
+        const publicLink = (id) => `${PUBLIC_PAGE}?file=${id}`;
+        const onPublicPage = REDIRECT_URI === PUBLIC_PAGE;
 
         function setFileId(id) {
           fileId = id;
           store.set('fileId', id);
           $('#file').value = id;
           $('#join').textContent = id ? joinLink(id) : '(create the group in step 2 first)';
+          $('#join-phone').textContent = id ? publicLink(id) : '(create the group in step 2 first)';
         }
 
         // ---------- results ----------
@@ -350,7 +403,7 @@
 
         function resultsText() {
           return [
-            'FairShare feasibility results',
+            `FairShare feasibility results (test page round ${PAGE_ROUND})`,
             `Browser: ${navigator.userAgent}`,
             `Page: ${location.origin}${location.pathname}`,
             `Project number: ${cfg.appId || '(none)'} · API key set: ${cfg.apiKey ? 'yes' : 'no'}`,
@@ -463,6 +516,7 @@
             tokenClient.requestAccessToken(opts);
           }).then((resp) => {
             token = { value: resp.access_token, expiresAt: Date.now() + (Number(resp.expires_in) || 3600) * 1000 };
+            saveSession();
             return { resp, ms: Math.round(performance.now() - started) };
           });
         }
@@ -507,11 +561,20 @@
             { values: rows },
           );
         const permissions = () =>
-          api('GET', `${DRIVE}/files/${fileId}/permissions?fields=permissions(id,emailAddress,role,pendingOwner)`).then(
-            (r) => r.permissions || [],
-          );
+          api(
+            'GET',
+            `${DRIVE}/files/${fileId}/permissions?fields=permissions(id,emailAddress,role,pendingOwner,permissionDetails)`,
+          ).then((r) => r.permissions || []);
         const describePerms = (perms) =>
-          perms.map((p) => `${p.emailAddress || p.id} (${p.role}${p.pendingOwner ? ', ownership offered' : ''})`).join(', ');
+          perms
+            .map((p) => {
+              const tags = [p.role];
+              if (p.pendingOwner) tags.push('ownership offered');
+              if ((p.permissionDetails || []).some((d) => d.inherited)) tags.push('partly inherited from a folder');
+              return `${p.emailAddress || p.id} (${tags.join(', ')})`;
+            })
+            .join(', ');
+        const fileInfo = (fields) => api('GET', `${DRIVE}/files/${fileId}?fields=${fields}`);
 
         function loadPicker() {
           return waitFor(() => window.gapi && gapi.load, 15000).then(
@@ -586,6 +649,26 @@
           $('#st-cfg').append(span);
         }
 
+        // Reads who is signed in (Google profile + Drive permission ID) with the current token.
+        async function loadMe() {
+          const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${token.value}` },
+          });
+          if (!r.ok) throw new Error(`Could not read your Google profile (HTTP ${r.status})`);
+          const info = await r.json();
+          me = { email: String(info.email || '').toLowerCase(), name: info.name || info.email, permissionId: '' };
+          store.set('lastEmail', me.email);
+          let aboutNote = 'works';
+          try {
+            me.permissionId = (await api('GET', `${DRIVE}/about?fields=user(permissionId)`)).user.permissionId;
+          } catch (e) {
+            aboutNote = 'FAILED ' + e.message;
+          }
+          saveSession();
+          renderStatus();
+          return aboutNote;
+        }
+
         // ---------- steps ----------
         $('#btn-1').onclick = () =>
           run('1 Sign in', '#out-1', async () => {
@@ -593,21 +676,7 @@
             const o = google.accounts.oauth2;
             const hasFile = o.hasGrantedAllScopes(resp, DRIVE_FILE);
             const hasAppdata = o.hasGrantedAllScopes(resp, DRIVE_APPDATA);
-            const info = await (async () => {
-              const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: { Authorization: `Bearer ${token.value}` },
-              });
-              if (!r.ok) throw new Error(`Could not read your Google profile (HTTP ${r.status})`);
-              return r.json();
-            })();
-            me = { email: String(info.email || '').toLowerCase(), name: info.name || info.email, permissionId: '' };
-            let aboutNote = 'works';
-            try {
-              me.permissionId = (await api('GET', `${DRIVE}/about?fields=user(permissionId)`)).user.permissionId;
-            } catch (e) {
-              aboutNote = 'FAILED ' + e.message;
-            }
-            renderStatus();
+            const aboutNote = await loadMe();
             const detail =
               `Signed in as ${me.email} (${ms} ms). drive.file: ${hasFile ? 'granted' : 'NOT granted'}; ` +
               `drive.appdata: ${hasAppdata ? 'granted' : 'NOT granted'}; Drive "about": ${aboutNote}`;
@@ -620,24 +689,10 @@
             requireMe();
             const emails = parseEmails($('#invite').value).filter((e) => e !== me.email);
             if (!emails.length) throw new Error('Enter the email of at least one other test account');
-            const q = encodeURIComponent(
-              `name = '${FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-            );
-            const found = await api('GET', `${DRIVE}/files?q=${q}&fields=files(id)`);
-            let folderId = found.files && found.files[0] && found.files[0].id;
-            const folderNote = folderId ? 'reused folder (listing app-made files works)' : 'created folder';
-            if (!folderId) {
-              folderId = (
-                await api('POST', `${DRIVE}/files?fields=id`, {
-                  name: FOLDER_NAME,
-                  mimeType: 'application/vnd.google-apps.folder',
-                })
-              ).id;
-            }
+            // No folder: in round 1 the old owner kept access through the folder after a handover and could not leave.
             const file = await api('POST', `${DRIVE}/files?fields=id,name`, {
               name: `FairShare test – ${new Date().toLocaleString()}`,
               mimeType: 'application/vnd.google-apps.spreadsheet',
-              parents: [folderId],
             });
             setFileId(file.id);
             const meta = await api('GET', `${SHEETS}/${file.id}?fields=sheets.properties(sheetId,title)`);
@@ -659,7 +714,7 @@
                 { range: 'Expenses!A1:D1', values: [['id', 'description', 'amount', 'addedBy']] },
               ],
             });
-            const message = `FairShare feasibility test: you were added to a test group. Open: ${joinLink(file.id)}`;
+            const message = `FairShare feasibility test: you were added to a test group. Open on any phone or computer: ${publicLink(file.id)}`;
             const shared = [];
             for (const email of emails) {
               await api(
@@ -669,7 +724,7 @@
               );
               shared.push(email);
             }
-            return `Created "${file.name}" (${folderNote}), added tabs and headers, shared as Editor with ${shared.join(', ')}. Google should email them. Join link: ${joinLink(file.id)}`;
+            return `Created "${file.name}" at the top of My Drive (no folder), added tabs and headers, shared as Editor with ${shared.join(', ')}. Google should email them. Join link: ${joinLink(file.id)}`;
           });
 
         $('#btn-3a').onclick = () =>
@@ -727,6 +782,111 @@
             return `Selected "${picked.map((p) => p.name).join(', ')}" (${note})`;
           });
 
+        // ---------- redirect steps (3e, 7d): the whole page goes to Google and comes back ----------
+        function beginRedirect(kind, params, at) {
+          if (!cfg.clientId) throw new Error('No OAuth client ID configured');
+          const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+          tab.set('redirect', { kind, nonce, at, search: location.search });
+          saveSession();
+          const q = new URLSearchParams({ client_id: cfg.clientId, redirect_uri: REDIRECT_URI, state: `${kind}:${nonce}`, ...params });
+          const hint = (me && me.email) || store.get('lastEmail', '');
+          if (hint) q.set('login_hint', hint);
+          location.assign(`https://accounts.google.com/o/oauth2/v2/auth?${q}`);
+        }
+
+        $('#btn-3e').onclick = () => {
+          if (busy) return;
+          try {
+            requireFile();
+            // Google's "pick on our page" flow for apps that can't show the picker inside their own page. Google also
+            // sends back a one-time code; this page ignores it (using it needs a server). The pick itself grants access.
+            beginRedirect(
+              'pick',
+              { response_type: 'code', scope: DRIVE_FILE, prompt: 'consent', trigger_onepick: 'true', file_ids: fileId },
+              Date.now(),
+            );
+          } catch (e) {
+            record("3e Pick on Google's page", 'FAIL', e.message, $('#out-3'));
+          }
+        };
+
+        const askRedirect = () =>
+          ask($('#out-7'), '7d Sign-in by redirect: what you saw', 'What did you see?', [
+            'Only the page reloading',
+            'A Google page flashed briefly',
+            'Google asked me to choose an account or click',
+          ]);
+
+        // Runs on page load: finishes a trip to Google (3e, 7d), or starts one after the 7d reload.
+        function handleRedirect() {
+          const hash = new URLSearchParams(location.hash.slice(1));
+          const query = new URLSearchParams(location.search);
+          const params = hash.has('state') ? hash : query.has('state') ? query : null;
+          if (!params) {
+            const auto = tab.take('auto');
+            if (!auto) return;
+            // 7d: no click involved. The page was just reloaded and goes to Google on its own.
+            try {
+              beginRedirect(
+                'signin',
+                { response_type: 'token', scope: SCOPES.join(' '), include_granted_scopes: 'true', prompt: 'none' },
+                auto.at,
+              );
+            } catch (e) {
+              record('7d Sign-in by redirect', 'FAIL', e.message, $('#out-7'));
+            }
+            return;
+          }
+          const prev = tab.take('redirect');
+          // Remove the token or code from the address bar and restore the original link (?file=…).
+          history.replaceState(null, '', location.pathname + (prev ? prev.search : ''));
+          const [kind, nonce] = String(params.get('state')).split(':');
+          const stateOk = Boolean(prev && prev.kind === kind && prev.nonce === nonce);
+          const ms = prev ? Date.now() - prev.at : 0;
+          const error = params.get('error');
+          if (kind === 'signin') {
+            run('7d Sign-in by redirect', '#out-7', async () => {
+              if (!stateOk) throw new Error('Unexpected answer from Google (state mismatch), ignored');
+              if (error) {
+                const needsClick = /interaction|login|consent|account_selection/.test(error);
+                return {
+                  result: 'FAIL',
+                  detail: `Google answered "${error}" after ${ms} ms${needsClick ? '. Google wants a click first: run step 1 in this profile, then try again' : ''}`,
+                };
+              }
+              const value = params.get('access_token');
+              if (!value) throw new Error('Google came back without an access token');
+              token = { value, expiresAt: Date.now() + (Number(params.get('expires_in')) || 3600) * 1000 };
+              const granted = String(params.get('scope') || '').split(' ');
+              const aboutNote = await loadMe();
+              askRedirect();
+              return (
+                `Signed in as ${me.email} with no popup and no click, ${ms} ms from reload to access. ` +
+                `drive.file: ${granted.includes(DRIVE_FILE) ? 'granted' : 'NOT granted'}; ` +
+                `drive.appdata: ${granted.includes(DRIVE_APPDATA) ? 'granted' : 'NOT granted'}; Drive "about": ${aboutNote}`
+              );
+            });
+          } else if (kind === 'pick') {
+            run("3e Pick on Google's page", '#out-3', async () => {
+              if (!stateOk) throw new Error('Unexpected answer from Google (state mismatch), ignored');
+              ask($('#out-3'), "3e Pick on Google's page: what you saw", 'What did Google show before you came back?', [
+                'A permission screen, then the sheet to select',
+                'Only the sheet to select',
+                'Only a permission screen',
+              ]);
+              if (error) return { result: 'FAIL', detail: `Google answered "${error}" after ${ms} ms` };
+              const ids = String(params.get('picked_file_ids') || '').split(',').filter(Boolean);
+              if (!ids.length) return { result: 'FAIL', detail: `Came back from Google after ${ms} ms without a picked file` };
+              if (fileId && !ids.includes(fileId))
+                return { result: 'FAIL', detail: `Picked ${ids.join(', ')}, not the test sheet` };
+              if (!fileId) setFileId(ids[0]);
+              const signedIn = Boolean(me && token && Date.now() < token.expiresAt);
+              if (signedIn) setTimeout(() => $('#btn-3c').click(), 0);
+              return `Picked the test sheet on Google's page (${ms} ms there and back)${signedIn ? '; step c runs next' : '. Sign in (step 1), then run step c'}`;
+            });
+          }
+        }
+
         $('#btn-4').onclick = () =>
           run('4 Hidden personal file', '#out-4', async () => {
             requireMe();
@@ -759,7 +919,7 @@
             const f = await api('GET', `${DRIVE}/files/${fileId}?fields=writersCanShare,capabilities(canShare),owners(emailAddress)`);
             const state = `members may share: ${f.writersCanShare ? 'yes' : 'no'}, I can share: ${f.capabilities && f.capabilities.canShare ? 'yes' : 'no'}`;
             try {
-              const message = `FairShare feasibility test: ${me.name} added you to a test group. Open: ${joinLink(fileId)}`;
+              const message = `FairShare feasibility test: ${me.name} added you to a test group. Open on any phone or computer: ${publicLink(fileId)}`;
               await api(
                 'POST',
                 `${DRIVE}/files/${fileId}/permissions?sendNotificationEmail=true&emailMessage=${encodeURIComponent(message)}&fields=id`,
@@ -786,6 +946,8 @@
           run('6 Owner sees changes', '#out-6', async () => {
             requireMe();
             requireFile();
+            if (!(await fileInfo('ownedByMe')).ownedByMe)
+              return { result: 'NOTE', detail: "You don't own this sheet. Run step 6 in the owner's profile." };
             const rows = ((await values('Expenses!A1:D500')).values || []).slice(1);
             const fromOthers = rows.filter((r) => r[3] && String(r[3]).toLowerCase() !== me.email);
             const perms = await permissions();
@@ -821,7 +983,13 @@
         $('#btn-7c').onclick = () => {
           if (busy) return;
           if (!me) return record('7c Refresh without a click', 'FAIL', 'Sign in first (step 1)', $('#out-7'));
-          record('7c Refresh without a click', 'NOTE', 'Asking Google again in 3 seconds, without a click…', $('#out-7'));
+          // Browsers treat a popup as "from a click" for about 5 s after the click, so wait well past that.
+          record(
+            '7c Refresh without a click',
+            'NOTE',
+            "Asking Google again in 10 seconds, without a click. Don't click anything until then…",
+            $('#out-7'),
+          );
           setTimeout(
             () =>
               run('7c Refresh without a click', '#out-7', async () => {
@@ -831,14 +999,23 @@
               }).then(() => {
                 if (results[results.length - 1].result === 'FAIL') askRefresh();
               }),
-            3000,
+            10000,
           );
+        };
+
+        $('#btn-7d').onclick = () => {
+          if (busy) return;
+          if (!cfg.clientId) return record('7d Sign-in by redirect', 'FAIL', 'No OAuth client ID configured', $('#out-7'));
+          tab.set('auto', { at: Date.now() });
+          location.reload();
         };
 
         $('#btn-8a').onclick = () =>
           run('8a Offer ownership', '#out-8', async () => {
             requireMe();
             requireFile();
+            if (!(await fileInfo('ownedByMe')).ownedByMe)
+              return { result: 'NOTE', detail: "Only the owner can offer ownership. Run 8a in the owner's profile." };
             const email = parseEmails($('#handover').value)[0];
             if (!email) throw new Error("Enter B's email first");
             const target = (await permissions()).find((p) => String(p.emailAddress || '').toLowerCase() === email);
@@ -855,6 +1032,13 @@
             requireMe();
             requireFile();
             if (!me.permissionId) throw new Error('Unknown permission ID (Drive "about" failed in step 1)');
+            if ((await fileInfo('ownedByMe')).ownedByMe)
+              return { result: 'NOTE', detail: 'You already own the sheet. Run 8b in the profile that was offered ownership.' };
+            const mine = await api('GET', `${DRIVE}/files/${fileId}/permissions/${me.permissionId}?fields=pendingOwner`).catch(
+              () => null,
+            );
+            if (mine && !mine.pendingOwner)
+              return { result: 'NOTE', detail: "Ownership hasn't been offered to you yet. Run 8a in the owner's profile first." };
             await api('PATCH', `${DRIVE}/files/${fileId}/permissions/${me.permissionId}?transferOwnership=true&fields=id,role`, {
               role: 'owner',
             });
@@ -875,6 +1059,8 @@
             requireMe();
             requireFile();
             if (!me.permissionId) throw new Error('Unknown permission ID (Drive "about" failed in step 1)');
+            if ((await fileInfo('ownedByMe')).ownedByMe)
+              return { result: 'NOTE', detail: "The owner can't leave. Hand over ownership first (8a, 8b)." };
             await api('DELETE', `${DRIVE}/files/${fileId}/permissions/${me.permissionId}`);
             try {
               await values('Members!A1:A2');
@@ -913,22 +1099,26 @@
           run('9c Trash the sheet', '#out-9', async () => {
             requireMe();
             requireFile();
+            if (!(await fileInfo('ownedByMe')).ownedByMe)
+              return { result: 'NOTE', detail: "Only the owner can trash the sheet. Run 9c in the owner's profile." };
             const f = await api('PATCH', `${DRIVE}/files/${fileId}?fields=trashed`, { trashed: true });
             return `Moved to trash: ${f.trashed ? 'yes' : 'no'}`;
           });
 
         // ---------- misc UI ----------
         $('#file').addEventListener('change', () => setFileId(parseFileId($('#file').value)));
-        $('#btn-copy-join').onclick = async () => {
+        const copyLink = (btnSel, link, label) => async () => {
           if (!fileId) return;
           try {
-            await navigator.clipboard.writeText(joinLink(fileId));
-            $('#btn-copy-join').textContent = 'Copied';
+            await navigator.clipboard.writeText(link(fileId));
+            $(btnSel).textContent = 'Copied';
           } catch {
-            $('#btn-copy-join').textContent = 'Copy failed: select the link above';
+            $(btnSel).textContent = 'Copy failed: select the link above';
           }
-          setTimeout(() => ($('#btn-copy-join').textContent = 'Copy join link'), 2000);
+          setTimeout(() => ($(btnSel).textContent = label), 2000);
         };
+        $('#btn-copy-join').onclick = copyLink('#btn-copy-join', joinLink, 'Copy join link');
+        $('#btn-copy-phone').onclick = copyLink('#btn-copy-phone', publicLink, 'Copy phone link');
         $('#btn-copy-log').onclick = async () => {
           renderLog();
           try {
@@ -964,9 +1154,11 @@
 
         // ---------- start ----------
         setFileId(fileId);
+        $('#phone-row').hidden = onPublicPage;
         renderLog();
         renderStatus();
         setInterval(renderStatus, 1000);
+        handleRedirect();
         waitFor(() => window.google && google.accounts && google.accounts.oauth2, 15000).then(
           () => {
             if (!cfg.clientId) {

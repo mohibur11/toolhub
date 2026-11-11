@@ -9,4 +9,5 @@ window.FAIRSHARE_CONFIG = {
   // Apps Script → Deploy → Manage deployments → Web app URL (ends with /exec)
   apiUrl:
     "https://script.google.com/macros/s/AKfycbxwEUHaAwd6a3PL8fnjVm8bad5OZgombIzr_JxpkvpCXTX6LylLEzVHjXpMuxJt_s5sVw/exec",
+  googleApiKey: "AIzaSyCrFx2XklUqaTJQl-mZFXhePXcu5w1gn5U",
 };
