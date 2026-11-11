@@ -102,7 +102,7 @@
     <main>
       <h1>FairShare feasibility test</h1>
       <p class="muted">
-        Throwaway page (round 2). Checks that FairShare can work with <b>no server and no admin access</b>: each
+        Throwaway page (round 3). Checks that FairShare can work with <b>no server and no admin access</b>: each
         person's browser uses their own Google permission (<code>drive.file</code>). Use a <b>separate Chrome profile</b>
         for each test account (not incognito). Every step records its result below; at the end each profile copies its
         results.
@@ -153,8 +153,9 @@
       <section class="card">
         <h2><span class="badge a">Account A</span> 2. Create a test group and invite</h2>
         <p>
-          Creates a sheet at the top of A's My Drive (no folder, as the real app will) and shares it as Editor. Google
-          emails each person a link that also works on phones.
+          Creates a sheet at the top of A's My Drive (no folder, as the real app will) and shares it as Editor. The
+          first email gets Google's invite with a message and the test link; the others get Google's standard invite
+          with no message, to compare which ones arrive.
         </p>
         <label for="invite">Emails of the other test accounts (B, and C if you have one)</label>
         <input id="invite" placeholder="b-account@gmail.com, c-account@gmail.com" autocomplete="off" />
@@ -227,7 +228,8 @@
         <button class="secondary" id="btn-7c">c. New access in 10 s, without a click</button>
         <p>
           <b>d. Opening the app later.</b> Reloads this page, then signs in by sending the whole page to Google and back
-          (no popup, no click), the way the real app would when it starts.
+          (no popup), the way the real app would when it starts. Round 2 asked Google to show no screens at all and was
+          refused; this time Google may show a page, so note what you see.
         </p>
         <button id="btn-7d">d. Reload and sign in automatically</button>
         <div class="out" id="out-7"></div>
@@ -235,7 +237,7 @@
 
       <section class="card">
         <h2><span class="badge">A then B</span> 8. Hand over ownership</h2>
-        <ol>
+        <ol type="a">
           <li>
             <span class="badge a">A</span>
             <input id="handover" placeholder="B's email" autocomplete="off" />
@@ -244,8 +246,16 @@
           <li><span class="badge b">B</span> <button id="btn-8b">Accept ownership</button></li>
           <li><span class="badge">Any</span> <button class="secondary" id="btn-8c">Who owns the sheet?</button></li>
           <li>
-            <span class="badge a">A</span> <button class="secondary" id="btn-8d">Leave the group (remove my access)</button>
-            <span class="muted">Only after B owns it.</span>
+            <span class="badge">Member</span> <button class="secondary" id="btn-8d">Leave the group (remove my access)</button>
+            <span class="muted">Any member. The old owner only after handing over.</span>
+          </li>
+          <li>
+            <span class="badge b">B</span> <button id="btn-8e">New owner: move the sheet into my Drive</button>
+            <span class="muted">Right after b. The old owner then runs c: "inherited" should be gone.</span>
+          </li>
+          <li>
+            <span class="badge a">A</span> <button class="secondary" id="btn-8f">Remove the sheet from my Drive, then leave</button>
+            <span class="muted">Only if d still fails for the old owner.</span>
           </li>
         </ol>
         <div class="out" id="out-8"></div>
@@ -264,10 +274,9 @@
       <section class="card">
         <h2><span class="badge">Phone</span> 10. Phone</h2>
         <p class="muted">
-          Needs this page online at <code>https://mohibur11.github.io/toolhub/tools/fairshare-spike/</code> (push to
-          GitHub first). On the phone, open Google's invite email and tap the link, then run step 1, then 3b (if that
-          picker can't be used, 3e). Step 3c runs by itself after a successful pick. Then run 7d, and finally 8d to
-          leave. Copy the results.
+          Open the phone link on the phone (A's page has a "Copy phone link" button: send it to yourself on WhatsApp or
+          by email). Run step 1, then 3b (if that picker can't be used, 3e). Step 3c runs by itself after a successful
+          pick. Then run 7d, and finally 8d to leave. Copy the results.
         </p>
       </section>
 
@@ -294,7 +303,7 @@
         const SCOPES = ['openid', 'email', 'profile', DRIVE_FILE, DRIVE_APPDATA];
         const INDEX_NAME = 'fairshare-spike-index.json';
         const PUBLIC_PAGE = 'https://mohibur11.github.io/toolhub/tools/fairshare-spike/';
-        const PAGE_ROUND = 2;
+        const PAGE_ROUND = 3;
         // Must be listed under "Authorized redirect URIs" of the OAuth client (steps 3e and 7d).
         const REDIRECT_URI = location.origin + location.pathname;
 
@@ -570,7 +579,9 @@
             .map((p) => {
               const tags = [p.role];
               if (p.pendingOwner) tags.push('ownership offered');
-              if ((p.permissionDetails || []).some((d) => d.inherited)) tags.push('partly inherited from a folder');
+              const inherited = (p.permissionDetails || []).filter((d) => d.inherited);
+              if (inherited.length)
+                tags.push(`partly inherited from folder ${inherited.map((d) => d.inheritedFrom || '?').join('/')}`);
               return `${p.emailAddress || p.id} (${tags.join(', ')})`;
             })
             .join(', ');
@@ -716,13 +727,16 @@
             });
             const message = `FairShare feasibility test: you were added to a test group. Open on any phone or computer: ${publicLink(file.id)}`;
             const shared = [];
-            for (const email of emails) {
-              await api(
-                'POST',
-                `${DRIVE}/files/${file.id}/permissions?sendNotificationEmail=true&emailMessage=${encodeURIComponent(message)}&fields=id`,
-                { type: 'user', role: 'writer', emailAddress: email },
-              );
-              shared.push(email);
+            for (const [i, email] of emails.entries()) {
+              // Round 2 invites never arrived. Compare: first person gets a custom message with a link, others none.
+              const withMessage = i === 0;
+              const extra = withMessage ? `&emailMessage=${encodeURIComponent(message)}` : '';
+              await api('POST', `${DRIVE}/files/${file.id}/permissions?sendNotificationEmail=true${extra}&fields=id`, {
+                type: 'user',
+                role: 'writer',
+                emailAddress: email,
+              });
+              shared.push(`${email} (${withMessage ? 'invite with message and link' : 'standard invite, no message'})`);
             }
             return `Created "${file.name}" at the top of My Drive (no folder), added tabs and headers, shared as Editor with ${shared.join(', ')}. Google should email them. Join link: ${joinLink(file.id)}`;
           });
@@ -815,6 +829,7 @@
             'Only the page reloading',
             'A Google page flashed briefly',
             'Google asked me to choose an account or click',
+            'Google showed the permission screen again',
           ]);
 
         // Runs on page load: finishes a trip to Google (3e, 7d), or starts one after the 7d reload.
@@ -825,13 +840,10 @@
           if (!params) {
             const auto = tab.take('auto');
             if (!auto) return;
-            // 7d: no click involved. The page was just reloaded and goes to Google on its own.
+            // 7d: no click involved. The page was just reloaded and goes to Google on its own. Round 2 sent
+            // prompt=none and Google always answered interaction_required, so now Google may show a page if it wants.
             try {
-              beginRedirect(
-                'signin',
-                { response_type: 'token', scope: SCOPES.join(' '), include_granted_scopes: 'true', prompt: 'none' },
-                auto.at,
-              );
+              beginRedirect('signin', { response_type: 'token', scope: SCOPES.join(' '), include_granted_scopes: 'true' }, auto.at);
             } catch (e) {
               record('7d Sign-in by redirect', 'FAIL', e.message, $('#out-7'));
             }
@@ -1067,6 +1079,64 @@
               return { result: 'FAIL', detail: 'Removed my access, but I can still read the sheet' };
             } catch (e) {
               return `Left the group; reading the sheet now fails as expected (${e.message})`;
+            }
+          });
+
+        // Round 2: after a handover the sheet stays in the old owner's My Drive, so they keep access "inherited" from
+        // it and can't leave. 8e: the new owner moves it into their own Drive. 8f: the old owner takes it out of theirs.
+        const yn = (v) => (v === undefined ? '?' : v ? 'yes' : 'no');
+        const PARENT_FIELDS =
+          'ownedByMe,parents,capabilities(canAddMyDriveParent,canRemoveMyDriveParent,canMoveItemWithinDrive)';
+        const describeParents = (f) => {
+          const c = f.capabilities || {};
+          return (
+            `parents I can see: ${(f.parents || []).join(', ') || 'none'}; can add a parent: ${yn(c.canAddMyDriveParent)}, ` +
+            `can remove a parent: ${yn(c.canRemoveMyDriveParent)}, can move: ${yn(c.canMoveItemWithinDrive)}`
+          );
+        };
+
+        $('#btn-8e').onclick = () =>
+          run('8e New owner moves sheet into own Drive', '#out-8', async () => {
+            requireMe();
+            requireFile();
+            const f = await fileInfo(PARENT_FIELDS);
+            if (!f.ownedByMe) return { result: 'NOTE', detail: "Run 8e in the new owner's profile, right after 8b." };
+            const before = describeParents(f);
+            const qs = new URLSearchParams({ addParents: 'root', fields: 'parents' });
+            if (f.parents && f.parents.length) qs.set('removeParents', f.parents.join(','));
+            try {
+              const after = await api('PATCH', `${DRIVE}/files/${fileId}?${qs}`, {});
+              return `Moved into my Drive. Before: ${before}. Parents now: ${(after.parents || []).join(', ') || 'none'}`;
+            } catch (e) {
+              return { result: 'FAIL', detail: `Could not move it into my Drive: ${e.message}. Before: ${before}` };
+            }
+          });
+
+        $('#btn-8f').onclick = () =>
+          run('8f Old owner removes sheet from own Drive, then leaves', '#out-8', async () => {
+            requireMe();
+            requireFile();
+            if (!me.permissionId) throw new Error('Unknown permission ID (Drive "about" failed in step 1)');
+            const f = await fileInfo(PARENT_FIELDS);
+            if (f.ownedByMe) return { result: 'NOTE', detail: "The owner can't leave. Hand over ownership first (8a, 8b)." };
+            const before = describeParents(f);
+            if (f.parents && f.parents.length) {
+              try {
+                await api('PATCH', `${DRIVE}/files/${fileId}?removeParents=${f.parents.join(',')}&fields=id`, {});
+              } catch (e) {
+                return { result: 'FAIL', detail: `Could not remove it from my Drive: ${e.message}. Before: ${before}` };
+              }
+            }
+            try {
+              await api('DELETE', `${DRIVE}/files/${fileId}/permissions/${me.permissionId}`);
+            } catch (e) {
+              return { result: 'FAIL', detail: `Took it out of my Drive, but still could not leave: ${e.message}. Before: ${before}` };
+            }
+            try {
+              await values('Members!A1:A2');
+              return { result: 'FAIL', detail: 'Removed my access, but I can still read the sheet' };
+            } catch (e) {
+              return `Took the sheet out of my Drive, then left; reading now fails as expected (${e.message}). Before: ${before}`;
             }
           });
 
