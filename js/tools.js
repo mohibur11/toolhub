@@ -27,4 +27,11 @@ export const TOOLS = [
     description: "Split trip and event expenses with friends, then settle up with the fewest payments. Data lives in your own Google Sheet.",
     url: "tools/fairshare/",
   },
+  {
+    id: "easyapply",
+    icon: "📝",
+    name: "EasyApply",
+    description: "Teletalk govt job forms: enter your details, photo and signature once, then fill any application with one tap — on your phone. Data stays in your own Google Drive.",
+    url: "tools/easyapply/",
+  },
 ];

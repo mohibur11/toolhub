@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="EasyApply: fill your details once, then fill any Teletalk government job application form with one tap — free, on mobile, tablet or computer. Your data stays in your own Google Drive.">
+<meta name="theme-color" content="#0B7A55">
+<title>EasyApply · Toolhub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="app.css?v=1">
+<script src="../../js/easyapply-config.js?v=1"></script>
+</head>
+<body class="bn">
+<header class="mast">
+  <div class="mast-in">
+    <a class="back" href="../../index.html" aria-label="Toolhub">←</a>
+    <div class="brand">
+      <span class="mark" aria-hidden="true">EA</span>
+      <div>
+        <h1>EasyApply</h1>
+        <small><span class="bn-t">সরকারি চাকরির আবেদন, এক ট্যাপে</span><span class="en">Govt job forms, one tap</span></small>
+      </div>
+    </div>
+    <div class="mast-tools">
+      <button class="ghost" id="langBtn" type="button">EN</button>
+      <button class="ghost avatar" id="accountBtn" type="button" hidden aria-haspopup="true" aria-expanded="false"></button>
+    </div>
+  </div>
+  <div class="account-menu" id="accountMenu" hidden>
+    <p class="who" id="accountEmail"></p>
+    <p class="muted small" id="accountSync"></p>
+    <button class="btn secondary" id="syncNowBtn" type="button"><span class="bn-t">এখন সিঙ্ক করুন</span><span class="en">Sync now</span></button>
+    <button class="btn danger-ghost" id="signOutBtn" type="button"><span class="bn-t">সাইন আউট ও এই ডিভাইস থেকে মুছুন</span><span class="en">Sign out and remove from this device</span></button>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- Sign-in gate -->
+  <section id="gate" class="gate" hidden>
+    <div class="hero">
+      <h2><span class="bn-t">একবার তথ্য দিন, প্রতিটি আবেদনে এক ট্যাপে পূরণ</span><span class="en">Enter your details once. Fill every application with one tap.</span></h2>
+      <p class="lede"><span class="bn-t">টেলিটকের প্রতিটি সরকারি চাকরির ফর্মে একই তথ্য বারবার লিখতে হয়। EasyApply আপনার তথ্য, ছবি ও স্বাক্ষর একবার রেখে দেয় — তারপর যেকোনো ফর্মে একটি বুকমার্ক চাপলেই ঘরগুলো পূরণ হয়ে যায়। আপনি শুধু যাচাই করে Submit চাপবেন। সম্পূর্ণ বিনামূল্যে, মোবাইলেই চলে।</span><span class="en">Every Teletalk government job form asks the same details again and again. EasyApply keeps your details, photo and signature once — then one bookmark tap fills any form. You just check it and press Submit. Free, and it works on a phone.</span></p>
+      <ol class="steps3">
+        <li><b>১</b><span><span class="bn-t">প্রোফাইল পূরণ করুন</span><span class="en">Fill your profile</span></span></li>
+        <li><b>২</b><span><span class="bn-t">EasyApply বুকমার্ক যোগ করুন</span><span class="en">Add the EasyApply bookmark</span></span></li>
+        <li><b>৩</b><span><span class="bn-t">টেলিটক ফর্মে বুকমার্ক চাপুন</span><span class="en">Tap it on a Teletalk form</span></span></li>
+      </ol>
+      <button class="btn primary big" id="signInBtn" type="button">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+        <span class="bn-t">Google দিয়ে সাইন ইন করুন</span><span class="en">Sign in with Google</span>
+      </button>
+      <p class="msg bad" id="gateError" hidden></p>
+      <p class="fine"><span class="bn-t">আপনার তথ্য থাকে শুধু আপনার নিজের Google Drive-এর একটি লুকানো ফোল্ডারে ও এই ফোনে। আর কেউ — EasyApply-এর নির্মাতাও — তা দেখতে পারে না।</span><span class="en">Your data stays only in a hidden folder of your own Google Drive and on this phone. Nobody else — not even EasyApply's maker — can see it.</span> <a href="privacy.html"><span class="bn-t">গোপনীয়তা</span><span class="en">Privacy</span></a></p>
+    </div>
+  </section>
+
+  <!-- App -->
+  <section id="app" hidden>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="profile" aria-selected="true"><span class="bn-t">প্রোফাইল</span><span class="en">Profile</span></button>
+      <button role="tab" data-tab="photo" aria-selected="false"><span class="bn-t">ছবি ও স্বাক্ষর</span><span class="en">Photo &amp; signature</span></button>
+      <button role="tab" data-tab="setup" aria-selected="false"><span class="bn-t">ব্যবহার পদ্ধতি</span><span class="en">How to use</span></button>
+    </nav>
+
+    <div id="banners"></div>
+
+    <div class="tab" id="tab-profile">
+      <div class="progress" id="progress"></div>
+      <div id="sections"></div>
+    </div>
+
+    <div class="tab" id="tab-photo" hidden>
+      <p class="lede small"><span class="bn-t">টেলিটকের নিয়ম: ছবি ৩০০×৩০০ পিক্সেল (৪–১০০ KB), স্বাক্ষর ৩০০×৮০ পিক্সেল (৩–৬০ KB), .jpg। রঙিন ছবি আবশ্যক, এবং ছবি আবেদনের তারিখ থেকে গত ১ মাসের মধ্যে তোলা হতে হবে। EasyApply নিজেই সঠিক মাপে কেটে ও ছোট করে দেবে।</span><span class="en">Teletalk rules: photo 300×300 px (4–100 KB), signature 300×80 px (3–60 KB), .jpg. Colour photo only, taken within the last month. EasyApply crops and resizes for you.</span></p>
+      <div class="media-grid">
+        <div class="card media" id="media-photo"></div>
+        <div class="card media" id="media-signature"></div>
+      </div>
+    </div>
+
+    <div class="tab" id="tab-setup" hidden>
+      <div class="card">
+        <h3><span class="bn-t">ধাপ ১ — EasyApply বুকমার্ক যোগ করুন (একবারই)</span><span class="en">Step 1 — Add the EasyApply bookmark (once)</span></h3>
+        <p class="small muted"><span class="bn-t">এই বুকমার্কটি টেলিটকের ফর্মে EasyApply চালু করে। নিচের কোডটি কপি করে একটি বুকমার্কের ঠিকানা (URL) হিসেবে রাখুন।</span><span class="en">This bookmark starts EasyApply on a Teletalk form. Copy the code below and save it as a bookmark's address (URL).</span></p>
+        <textarea id="bmCode" class="code" readonly rows="3"></textarea>
+        <button class="btn primary" id="copyBm" type="button"><span class="bn-t">কোড কপি করুন</span><span class="en">Copy code</span></button>
+        <span class="small ok-text" id="copied" hidden><span class="bn-t">কপি হয়েছে ✓</span><span class="en">Copied ✓</span></span>
+
+        <details class="how" open>
+          <summary><span class="bn-t">অ্যান্ড্রয়েড — Chrome</span><span class="en">Android — Chrome</span></summary>
+          <ol>
+            <li><span class="bn-t">উপরের “কোড কপি করুন” চাপুন।</span><span class="en">Tap “Copy code” above.</span></li>
+            <li><span class="bn-t">Chrome-এর ⋮ মেনু চাপুন, তারপর ☆ (তারা) চাপুন — এই পেজটি বুকমার্ক হবে।</span><span class="en">Open Chrome's ⋮ menu and tap ☆ (star) — this page is bookmarked.</span></li>
+            <li><span class="bn-t">নিচে “Edit” / “সম্পাদনা” দেখা দিলে চাপুন (না দেখলে: ⋮ → বুকমার্ক → নতুন বুকমার্কের পাশে ⋮ → সম্পাদনা)।</span><span class="en">Tap “Edit” when it appears at the bottom (or: ⋮ → Bookmarks → ⋮ next to the new bookmark → Edit).</span></li>
+            <li><span class="bn-t">নাম দিন: <b>EasyApply</b>। URL ঘরের সব লেখা মুছে কপি করা কোড পেস্ট করুন। ← চেপে সেভ করুন।</span><span class="en">Name: <b>EasyApply</b>. Clear the URL box and paste the copied code. Press ← to save.</span></li>
+          </ol>
+        </details>
+        <details class="how">
+          <summary><span class="bn-t">আইফোন / আইপ্যাড — Safari</span><span class="en">iPhone / iPad — Safari</span></summary>
+          <ol>
+            <li><span class="bn-t">“কোড কপি করুন” চাপুন।</span><span class="en">Tap “Copy code”.</span></li>
+            <li><span class="bn-t">শেয়ার বোতাম (□↑) → “Add Bookmark” → Save।</span><span class="en">Share button (□↑) → “Add Bookmark” → Save.</span></li>
+            <li><span class="bn-t">বুকমার্ক (📖) → Edit → নতুন বুকমার্কে চাপুন।</span><span class="en">Bookmarks (📖) → Edit → tap the new bookmark.</span></li>
+            <li><span class="bn-t">নাম <b>EasyApply</b>, ঠিকানার ঘরে কোড পেস্ট করুন → Done।</span><span class="en">Name <b>EasyApply</b>, paste the code as the address → Done.</span></li>
+          </ol>
+        </details>
+        <details class="how">
+          <summary><span class="bn-t">কম্পিউটার — Chrome / Edge / Firefox</span><span class="en">Computer — Chrome / Edge / Firefox</span></summary>
+          <p class="small"><span class="bn-t">বুকমার্ক বার দেখাতে Ctrl+Shift+B চাপুন, তারপর এই বোতামটি টেনে বুকমার্ক বারে ছেড়ে দিন:</span><span class="en">Show the bookmarks bar with Ctrl+Shift+B, then drag this button onto it:</span></p>
+          <a class="btn secondary bm-drag" id="bmLink" href="#">⭐ EasyApply</a>
+        </details>
+      </div>
+
+      <div class="card">
+        <h3><span class="bn-t">ধাপ ২ — আবেদন করুন</span><span class="en">Step 2 — Apply</span></h3>
+        <ol class="apply-steps">
+          <li><span class="bn-t"><a href="https://alljobs.teletalk.com.bd/" target="_blank" rel="noopener">alljobs.teletalk.com.bd</a> বা বিভাগের টেলিটক সাইটে যান। “Application Form” → পদ বাছাই → Next। প্রিমিয়াম কোড না থাকলে সেটি বাদ দিয়ে এগিয়ে যান — আবেদন ফর্ম খুলবে।</span><span class="en">Go to <a href="https://alljobs.teletalk.com.bd/" target="_blank" rel="noopener">alljobs.teletalk.com.bd</a> or the department's Teletalk site. “Application Form” → choose the post → Next. Skip the premium code step — the application form opens.</span></li>
+          <li><span class="bn-t">বুকমার্ক চালান: অ্যান্ড্রয়েড Chrome-এ ঠিকানা বারে <b>EasyApply</b> লিখুন, তালিকায় ☆ চিহ্নসহ EasyApply চাপুন। আইফোন/কম্পিউটারে বুকমার্ক থেকে চাপুন।</span><span class="en">Run the bookmark: in Android Chrome type <b>EasyApply</b> in the address bar and tap the ☆ EasyApply suggestion. On iPhone/computer, tap it in your bookmarks.</span></li>
+          <li><span class="bn-t">“আমার তথ্য দিয়ে পূরণ করুন” চাপুন। একটি ট্যাব এক মুহূর্তের জন্য খুলে বন্ধ হবে — ফর্ম পূরণ হয়ে যাবে।</span><span class="en">Tap “Fill with my details”. A tab opens for a moment and closes — the form is filled.</span></li>
+          <li><span class="bn-t">সবুজ ঘরগুলো দেখে নিন। হলুদ ঘর (ক্যাপচা, ঘোষণার টিক) নিজে পূরণ করুন, তারপর Submit।</span><span class="en">Check the green fields. Fill the yellow ones (captcha, declaration) yourself, then Submit.</span></li>
+          <li><span class="bn-t">পরের পেজে আবার বুকমার্ক চালিয়ে “আমার ছবি ও স্বাক্ষর যুক্ত করুন” চাপুন। ঘোষণায় টিক দিয়ে Submit।</span><span class="en">On the next page run the bookmark again and tap “Attach my photo and signature”. Tick the declaration and Submit.</span></li>
+          <li><span class="bn-t">এরপর টেলিটকের নিয়মমতো SMS-এ ফি পরিশোধ করুন।</span><span class="en">Then pay the fee by SMS as Teletalk instructs.</span></li>
+        </ol>
+        <p class="small muted"><span class="bn-t">প্রথমবার প্রোফাইল না বানিয়ে সরাসরি ফর্ম পূরণ করলে বুকমার্কের “এই ফর্মের তথ্য EasyApply-তে সেভ করুন” দিয়ে সেই তথ্যই প্রোফাইলে আনতে পারবেন।</span><span class="en">If you fill a form by hand first, the bookmark's “Save this form to EasyApply” brings that data into your profile.</span></p>
+      </div>
+
+      <div class="card">
+        <h3><span class="bn-t">সমস্যা হলে</span><span class="en">If something goes wrong</span></h3>
+        <ul class="small tips">
+          <li><span class="bn-t">“নতুন ট্যাব খুলতে দেয়নি” দেখালে: Chrome-এ ঠিকানা বারের পাশের আইকন চেপে এই সাইটের পপ-আপ অনুমতি দিন।</span><span class="en">“Blocked the new tab”: allow pop-ups for the Teletalk site from the icon in the address bar.</span></li>
+          <li><span class="bn-t">Samsung Internet বা অন্য ব্রাউজারে বুকমার্ক না চললে Chrome ব্যবহার করুন।</span><span class="en">If the bookmark does nothing in Samsung Internet or another browser, use Chrome.</span></li>
+          <li><span class="bn-t">“এই ফোনে প্রোফাইল নেই” দেখালে: এই পেজে একবার সাইন ইন করুন — প্রোফাইল ফোনে চলে আসবে।</span><span class="en">“No profile on this device”: sign in on this page once — your profile comes to the phone.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="savebar" id="savebar" hidden>
+  <span class="status" id="status"></span>
+  <button class="btn primary" id="statusBtn" type="button" hidden></button>
+</footer>
+
+<template id="tpl-media">
+  <h3 class="m-title"></h3>
+  <p class="small muted m-spec"></p>
+  <div class="m-current">
+    <img class="m-img" alt="">
+    <div class="m-info small"></div>
+  </div>
+  <div class="m-editor" hidden>
+    <canvas class="m-canvas"></canvas>
+    <div class="m-tools">
+      <label class="small"><span class="bn-t">জুম</span><span class="en">Zoom</span> <input type="range" class="m-zoom" min="1" max="5" step="0.01" value="1"></label>
+      <button class="btn secondary m-rotate" type="button">⟳ <span class="bn-t">ঘোরান</span><span class="en">Rotate</span></button>
+    </div>
+    <label class="check m-clean-wrap" hidden><input type="checkbox" class="m-clean" checked> <span class="bn-t">কাগজ সাদা ও কালি গাঢ় করুন</span><span class="en">Whiten paper, darken ink</span></label>
+    <p class="small muted"><span class="bn-t">আঙুল দিয়ে টেনে সরান, দুই আঙুলে বড়-ছোট করুন।</span><span class="en">Drag to move, pinch to zoom.</span></p>
+    <div class="row">
+      <button class="btn primary m-save" type="button"><span class="bn-t">এটি সেভ করুন</span><span class="en">Save this</span></button>
+      <button class="btn secondary m-cancel" type="button"><span class="bn-t">বাতিল</span><span class="en">Cancel</span></button>
+    </div>
+  </div>
+  <p class="msg m-msg" hidden></p>
+  <div class="row m-actions">
+    <label class="btn secondary file"><input type="file" accept="image/*" class="m-file-camera" capture> <span class="bn-t">📷 ক্যামেরা</span><span class="en">📷 Camera</span></label>
+    <label class="btn secondary file"><input type="file" accept="image/*" class="m-file"> <span class="bn-t">🖼 গ্যালারি থেকে</span><span class="en">🖼 From gallery</span></label>
+    <a class="btn ghost m-download" download hidden><span class="bn-t">⬇ নামান</span><span class="en">⬇ Download</span></a>
+  </div>
+</template>
+
+<script type="module" src="js/app.js?v=1"></script>
+</body>
+</html>

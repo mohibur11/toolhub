@@ -62,6 +62,9 @@ Tools are defined in code; the admin panel only shows or hides them:
 ### Built tools (FairShare)
 FairShare (shared-expense splitter) is a React app, so it has a build step. Its source lives in **`fairshare/`**; `npm run build` there writes the static site into `tools/fairshare/`, which is committed so Pages can serve it without CI. It has no server: each group is a Google Sheet in its creator's Drive, read and written from the browser with the user's own Google sign-in. Its two config values (Google client ID and picker API key) live in **`js/fairshare-config.js`**. Setup and workflow: **`fairshare/README.md`**.
 
+### EasyApply
+EasyApply (Teletalk govt job form filler) is plain HTML/JS in **`tools/easyapply/`**, no build. Users keep their profile, photo and signature in their own Google Drive (hidden app-data folder) and fill any `*.teletalk.com.bd` application with a one-tap `javascript:` bookmark that loads `tools/easyapply/fill.js`. It uses its **own** Google Cloud project (client ID in **`js/easyapply-config.js`**), separate from FairShare's. Setup, architecture and tests: **`tools/easyapply/README.md`**. Keep the path `tools/easyapply/fill.js` stable — users' bookmarks point at it.
+
 ## Editing the calculator's fixed structure
 The tariff **structure** (which voltage levels, consumer classes, and slab bands exist) is defined in `js/dpdc-tariff.js`. Add a new consumer class there; its default numbers show up in the admin editor, where you can then tune them. Changing a *rate* is admin; changing the *structure* is code.
 
