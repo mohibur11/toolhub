@@ -2,7 +2,7 @@
 // Mirrors Teletalk's own rules (validator.js isValidDateOfBirth, main.js district filters) so the
 // user learns about a problem before paying the application fee. Teletalk still has the final say.
 
-import { hasLevel } from './fields.js?v=1';
+import { hasLevel } from './fields.js?v=2';
 
 const LEVEL_NAME = {
   ssc: { en: 'SSC or equivalent', bn: 'এসএসসি/সমমান' },

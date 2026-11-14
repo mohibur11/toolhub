@@ -189,4 +189,7 @@ details.how ol, .apply-steps, .tips { padding-left: 22px; margin: 8px 0; display
 .savebar .status { font-size: 13.5px; color: var(--ink-2); }
 .savebar .status.ok { color: var(--accent); font-weight: 600; }
 .savebar .status.bad { color: var(--bad); }
-.savebar .btn { min-height: 40px; padding: 8px 14px; white-space: nowrap; }
+.savebar .status.warn { color: var(--warn); font-weight: 600; }
+.savebar .btn { min-height: 44px; padding: 8px 22px; white-space: nowrap; font-size: 15px; }
+.savebar .btn:disabled { opacity: 1; cursor: default; background: var(--accent-soft); color: var(--accent); }
+@media (min-width: 720px) { .savebar { justify-content: center; gap: 24px; } }

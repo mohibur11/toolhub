@@ -21,7 +21,8 @@ export const EDU_PARTS = {
 };
 export const eduFields = (lvl) => EDU_PARTS[lvl].map((p) => `${lvl}_${p}`);
 
-export const JOB_PARTS = ['employment_type', 'designation', 'organization', 'office_address', 'job_start_date', 'job_end_date', 'currently_working', 'last_salary', 'job_description'];
+// Only fields the live forms show. ("Last Drawn Salary" is still in Teletalk's page source, but commented out.)
+export const JOB_PARTS = ['employment_type', 'designation', 'organization', 'office_address', 'job_start_date', 'job_end_date', 'currently_working', 'job_description'];
 
 // Every flat field (not jobs, photo or the has_ssc/has_hsc/has_gra/has_mas switches).
 export const FLAT = [...PERSONAL, ...IDENTITY, ...CONTACT, ...PRESENT, ...PERMANENT, ...EDU_LEVELS.flatMap(eduFields)];

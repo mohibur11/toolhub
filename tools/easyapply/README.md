@@ -40,7 +40,7 @@ Photo page (after Submit) ── bookmark again ──► [Attach my photo and s
 |---|---|
 | `index.html`, `app.css`, `js/app.js` | The app: sign-in gate, profile form, photo/signature editor, bookmark setup guide |
 | `fill.js` | Loaded into Teletalk pages by the bookmark: panel, filler, photo attach, "save this form" |
-| `bridge.html`, `js/bridge.js` | Tab that hands the device copy to the Teletalk tab (origin-checked) |
+| `bridge.html`, `js/bridge.js` | Tab that hands the device copy to the Teletalk tab (origin-checked); request comes in its URL so the paused Teletalk tab never has to answer |
 | `js/fields.js` | Teletalk field names and their dependent-list rules (shared) |
 | `js/schema.js` | Profile form sections, labels (BN/EN), validation copied from Teletalk's `validator.js` |
 | `js/lookups.js` | Dropdown lists (districts, upazilas, boards, universities, subjects…). **Generated** |

@@ -2,11 +2,11 @@
 // It never submits anything, never touches the captcha or the declaration tick box, and never sets
 // Teletalk's paid "premium" fields. The user checks the form and presses Submit.
 
-import { FLAT, EDU_LEVELS, EDU_PARTS, OTHER_CODE, hasLevel, gpaMax } from './js/fields.js?v=1';
-import { checkEligibility, photoChecks, bnNum } from './js/eligibility.js?v=1';
+import { FLAT, EDU_LEVELS, EDU_PARTS, OTHER_CODE, hasLevel, gpaMax } from './js/fields.js?v=2';
+import { checkEligibility, photoChecks, bnNum } from './js/eligibility.js?v=2';
 
 const HERE = new URL('./', import.meta.url);
-const BRIDGE_URL = new URL('bridge.html', HERE).href;
+const BRIDGE_URL = new URL('bridge.html?v=3', HERE).href;
 const BRIDGE_ORIGIN = new URL(BRIDGE_URL).origin;
 const APP_URL = HERE.href;
 
@@ -20,39 +20,108 @@ const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 // ---------------------------------------------------------------- bridge
-function askBridge(message) {
+// Phone browsers pause this page while the bridge tab is in front, so this page must not be needed for
+// anything until the bridge has finished. Everything the bridge needs therefore travels in its URL (after
+// the #, which is never sent to a server); the bridge posts its answer here — the browser only delivers it
+// if this page really is the origin named in `o` — and closes itself, which brings this page back.
+let saveToken = null; // secret the bridge hands only to Teletalk pages; proves a "save" comes from one
+try {
+  saveToken = sessionStorage.getItem('easyapply.token');
+} catch {
+  /* storage blocked */
+}
+function rememberToken(tk) {
+  saveToken = tk;
+  try {
+    sessionStorage.setItem('easyapply.token', tk);
+  } catch {
+    /* storage blocked */
+  }
+}
+
+const b64u = {
+  enc(bytes) {
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  },
+  dec(str) {
+    const bin = atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  },
+};
+
+/** Encrypt with the token, so the URL (and browser history) never holds readable personal data. */
+async function seal(token, obj) {
+  const key = await crypto.subtle.importKey('raw', b64u.dec(token), 'AES-GCM', false, ['encrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+  return { iv: b64u.enc(iv), d: b64u.enc(new Uint8Array(ct)) };
+}
+
+/** Open an empty tab straight from the tap (so it isn't blocked); askBridge() then sends it to the bridge. */
+function openBlankTab() {
+  const win = window.open('', '_blank');
+  if (!win) throw new Error('popup');
+  return win;
+}
+
+function askBridge(action, extra = {}, win = null) {
   return new Promise((resolve, reject) => {
     const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    let win = null;
+    const url = `${BRIDGE_URL}#${new URLSearchParams({ a: action, o: location.origin, n: nonce, ...extra })}`;
     let timer = null;
+    let watch = null;
     const cleanup = () => {
       window.removeEventListener('message', onMsg);
       clearTimeout(timer);
+      clearInterval(watch);
     };
     const onMsg = (e) => {
-      if (e.origin !== BRIDGE_ORIGIN || !win || e.source !== win) return;
       const d = e.data || {};
-      if (d.type === 'easyapply:hello') win.postMessage({ ...message, nonce }, BRIDGE_ORIGIN);
-      else if (d.nonce === nonce) {
-        cleanup();
-        resolve(d);
-      }
+      if (e.origin !== BRIDGE_ORIGIN || d.nonce !== nonce) return;
+      cleanup();
+      if (d.token) rememberToken(d.token);
+      resolve(d);
     };
     window.addEventListener('message', onMsg);
-    win = window.open(BRIDGE_URL, 'easyapply_bridge');
+    if (win) win.location.replace(url);
+    else win = window.open(url, '_blank');
     if (!win) {
       cleanup();
       return reject(new Error('popup'));
     }
-    timer = setTimeout(() => {
+    const fail = () => {
       cleanup();
       reject(new Error('timeout'));
-    }, 45000);
+    };
+    timer = setTimeout(fail, 45000);
+    // Tab closed by hand without an answer: don't keep the button spinning.
+    watch = setInterval(() => {
+      if (win.closed) {
+        clearInterval(watch);
+        clearTimeout(timer);
+        timer = setTimeout(fail, 2000);
+      }
+    }, 500);
   });
+}
+
+/** Save captured form data into EasyApply. Throws 'again' when one more tap is needed to confirm. */
+async function saveToBridge(capture, win) {
+  if (!saveToken) {
+    await askBridge('token', {}, win);
+    throw new Error('again');
+  }
+  const r = await askBridge('save', await seal(saveToken, capture), win);
+  if (r.type !== 'easyapply:saved') throw new Error('again'); // token was out of date; a fresh one came back
 }
 
 function bridgeErrorText(err) {
   if (err.message === 'popup') return t('ব্রাউজার নতুন ট্যাব খুলতে দেয়নি। এই সাইটের জন্য পপ-আপ চালু করে আবার চাপুন।', 'The browser blocked the new tab. Allow pop-ups for this site and try again.');
+  if (err.message === 'again') return t('নিশ্চিত করতে বোতামটি আরেকবার চাপুন।', 'Press the button once more to confirm.');
   return t('EasyApply থেকে সাড়া পাওয়া যায়নি। আবার চেষ্টা করুন।', 'No answer from EasyApply. Please try again.');
 }
 
@@ -250,7 +319,6 @@ function fillApplication(form, profile) {
         if (cw) f.checkEl(cw, false);
         f.putEl(el('job_end_date'), j.currently_working === '1' ? today : j.job_end_date);
       }
-      f.putEl(el('last_salary'), j.last_salary);
       f.putEl(el('job_description'), String(j.job_description || '').slice(0, 300));
     });
   }
@@ -318,7 +386,6 @@ function captureApplication(form) {
         job_start_date: val('job_start_date'),
         job_end_date: val('job_end_date'),
         currently_working: el('currently_working')?.checked ? '1' : '',
-        last_salary: val('last_salary'),
         job_description: val('job_description'),
       };
       if (j.designation || j.organization) jobs.push(j);
@@ -495,7 +562,7 @@ function createPanel() {
   };
 
   async function getProfile() {
-    const r = await askBridge({ type: 'easyapply:get' });
+    const r = await askBridge('get');
     if (r.lang) lang = r.lang;
     state.source = r.source;
     if (!r.profile) throw new Error('empty');
@@ -596,10 +663,10 @@ function createPanel() {
         if (!cap.data.name && !cap.data.mobile) return setMessage('bad', t('ফর্মে সেভ করার মতো তথ্য নেই। আগে ফর্ম পূরণ করুন।', 'Nothing to save yet — fill the form first.'));
         busy(saveBtn, true);
         try {
-          await askBridge({ type: 'easyapply:save', capture: cap });
+          await saveToBridge(cap, openBlankTab());
           setMessage('ok', `${t('সেভ হয়েছে। পরে EasyApply খুলে তথ্য যাচাই করে Google Drive-এ সেভ করুন।', 'Saved. Later, open EasyApply to review it and save it to Google Drive.')} <a class="link" href="${APP_URL}" target="_blank" rel="noopener">${t('EasyApply খুলুন', 'Open EasyApply')}</a>`);
         } catch (err) {
-          setMessage('bad', bridgeErrorText(err));
+          setMessage(err.message === 'again' ? 'info' : 'bad', bridgeErrorText(err));
         }
       };
 
@@ -664,13 +731,20 @@ function createPanel() {
         const sf = uploads.sign?.files?.[0];
         if (!pf && !sf) return setMessage('bad', t('আগে ফর্মে ছবি/স্বাক্ষর বেছে নিন।', 'Choose the photo/signature in the form first.'));
         busy(saveFiles, true);
+        let tab = null;
         try {
+          tab = openBlankTab(); // before any waiting, while the tap still counts
           if (pf) cap.photo = { data: await readAsBase64(pf), bytes: pf.size, takenAt: '' };
           if (sf) cap.signature = { data: await readAsBase64(sf), bytes: sf.size };
-          await askBridge({ type: 'easyapply:save', capture: cap });
+          await saveToBridge(cap, tab);
           setMessage('ok', t('সেভ হয়েছে। EasyApply খুলে ছবি তোলার তারিখ দিন ও সেভ করুন।', 'Saved. Open EasyApply to add the photo date and save it.'));
         } catch (err) {
-          setMessage('bad', bridgeErrorText(err));
+          try {
+            tab?.close(); // don't leave an empty tab behind
+          } catch {
+            /* already gone */
+          }
+          setMessage(err.message === 'again' ? 'info' : 'bad', bridgeErrorText(err));
         }
       };
   }

@@ -3,10 +3,10 @@
 
 import { store } from './store.js?v=1';
 import * as drive from './drive.js?v=1';
-import { SECTIONS, JOB_FIELDS, isShown, optionsOf, validateProfile, optionText, OPTION_BN } from './schema.js?v=1';
-import { emptyProfile, PROFILE_VERSION } from './fields.js?v=1';
+import { SECTIONS, JOB_FIELDS, isShown, optionsOf, validateProfile, optionText, OPTION_BN } from './schema.js?v=2';
+import { emptyProfile, PROFILE_VERSION } from './fields.js?v=2';
 import { SPECS, loadImage, Cropper, cleanSignature, colourfulness, encodeJpeg, blobToBase64 } from './image.js?v=2';
-import { daysSince, bnNum } from './eligibility.js?v=1';
+import { daysSince, bnNum } from './eligibility.js?v=2';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -61,64 +61,90 @@ function normalize(p) {
 }
 
 // ---------------------------------------------------------------- saving & sync
-let localTimer = null;
-let pushTimer = null;
+// Nothing counts as saved until the user presses Save. Until then, edits are kept as a *draft* in this
+// browser (so a closed tab loses nothing). Save writes the profile here — the copy the bookmark uses —
+// and to Google Drive.
+let draftTimer = null;
+let dirty = false; // edits not saved yet
+let draftRestored = false; // this visit started from a draft left by an earlier one
 const saveMeta = () => store.set('meta', meta);
 
-async function flushLocal() {
-  clearTimeout(localTimer);
-  await store.set('profile', profile);
-  await saveMeta();
+function keepDraft() {
+  clearTimeout(draftTimer);
+  return dirty ? store.set('draft', profile) : Promise.resolve();
 }
 
 function changed() {
-  profile.updatedAt = new Date().toISOString();
-  meta.pendingSync = true;
-  clearTimeout(localTimer);
-  localTimer = setTimeout(flushLocal, 300);
-  clearTimeout(pushTimer);
-  if (drive.hasToken()) {
-    setStatus('pending');
-    pushTimer = setTimeout(pushNow, 1800);
-  } else setStatus('needSignIn');
+  dirty = true;
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(keepDraft, 300);
+  setStatus('dirty');
 }
 
+async function saveNow() {
+  clearTimeout(draftTimer);
+  profile.updatedAt = new Date().toISOString();
+  await store.set('profile', profile);
+  await store.del('draft');
+  dirty = false;
+  draftRestored = false;
+  meta.pendingSync = true; // saved here, Drive next
+  await saveMeta();
+  renderBanners();
+  return pushNow();
+}
+
+/** Send the saved copy (never an unsaved draft) to Drive. */
 async function pushNow() {
-  clearTimeout(pushTimer);
-  await flushLocal();
-  if (!drive.hasToken()) return setStatus('needSignIn');
+  if (!drive.hasToken()) return setStatus(dirty ? 'dirty' : 'needSignIn');
   setStatus('syncing');
   try {
-    await drive.writeProfile(profile);
+    await drive.writeProfile((await store.get('profile')) || profile);
     meta.pendingSync = false;
     meta.lastSyncedAt = new Date().toISOString();
     await saveMeta();
-    setStatus('synced');
+    setStatus(dirty ? 'dirty' : 'synced');
   } catch (e) {
     driveFailed(e);
   }
 }
 
 async function pull() {
-  if (!drive.hasToken()) return setStatus(meta.pendingSync ? 'needSignIn' : 'idle');
+  if (!drive.hasToken()) return setStatus(dirty ? 'dirty' : meta.pendingSync ? 'needSignIn' : 'idle');
   setStatus('syncing');
   try {
     const remote = await drive.readProfile();
-    if (meta.pendingSync) return pushNow(); // this device has newer edits
-    if (!remote) return profile.updatedAt ? pushNow() : setStatus('idle');
-    if (remote.updatedAt && remote.updatedAt !== profile.updatedAt) {
-      if (!profile.updatedAt || remote.updatedAt > profile.updatedAt) {
-        profile = normalize(remote);
-        await store.set('profile', profile);
-        renderAll();
+    const saved = await store.get('profile');
+    if (meta.pendingSync) return pushNow(); // saved here, not yet in Drive
+    if (!remote) return saved?.updatedAt ? pushNow() : setStatus(dirty ? 'dirty' : 'idle');
+    if (remote.updatedAt && remote.updatedAt !== saved?.updatedAt) {
+      if (!saved?.updatedAt || remote.updatedAt > saved.updatedAt) {
+        // Saved from another device: take it, unless the user is in the middle of editing here.
+        await store.set('profile', normalize(remote));
+        if (!dirty) {
+          profile = normalize(remote);
+          renderAll();
+        }
       } else return pushNow();
     }
     meta.lastSyncedAt = new Date().toISOString();
     await saveMeta();
-    setStatus('synced');
+    setStatus(dirty ? 'dirty' : 'synced');
   } catch (e) {
     driveFailed(e);
   }
+}
+
+async function discardDraft() {
+  if (!confirm(t('সেভ না করা পরিবর্তনগুলো বাদ দেবেন?', 'Discard the unsaved changes?'))) return;
+  clearTimeout(draftTimer);
+  await store.del('draft');
+  dirty = false;
+  draftRestored = false;
+  profile = normalize(await store.get('profile'));
+  touched.clear();
+  renderAll();
+  setStatus(meta.pendingSync ? 'needSignIn' : 'idle');
 }
 
 function driveFailed(e) {
@@ -151,33 +177,44 @@ function setStatus(state, detail = '') {
   const el = $('#status');
   const btn = $('#statusBtn');
   el.className = 'status';
-  btn.hidden = true;
+  // The Save button is always there; it is only greyed out when there is nothing new to save.
+  btn.hidden = false;
+  btn.disabled = false;
+  btn.className = 'btn primary';
+  btn.onclick = saveNow;
+  btn.textContent = t('সেভ করুন', 'Save');
+  const when = meta.lastSyncedAt ? ' · ' + timeAgo(meta.lastSyncedAt) : '';
   switch (state) {
-    case 'synced':
-      el.classList.add('ok');
-      el.textContent = t('✓ Google Drive-এ সেভ হয়েছে', '✓ Saved to Google Drive');
-      break;
-    case 'pending':
-      el.textContent = t('এই ডিভাইসে সেভ হয়েছে · Drive-এ পাঠানো হচ্ছে…', 'Saved on this device · sending to Drive…');
+    case 'dirty':
+      el.classList.add('warn');
+      el.textContent = t('● সেভ করা হয়নি এমন পরিবর্তন আছে', '● You have unsaved changes');
       break;
     case 'syncing':
-      el.textContent = t('Google Drive-এর সাথে মেলানো হচ্ছে…', 'Syncing with Google Drive…');
+      el.textContent = t('সেভ হচ্ছে…', 'Saving…');
+      btn.textContent = t('সেভ হচ্ছে…', 'Saving…');
+      btn.disabled = true;
+      break;
+    case 'synced':
+      el.classList.add('ok');
+      el.textContent = t('✓ সেভ হয়েছে — এই ডিভাইসে ও Google Drive-এ', '✓ Saved — on this device and in Google Drive') + when;
+      btn.textContent = t('✓ সেভ হয়েছে', '✓ Saved');
+      btn.disabled = true;
       break;
     case 'needSignIn':
-      el.textContent = meta.pendingSync ? t('এই ডিভাইসে সেভ আছে, Drive-এ এখনো নয়', 'Saved on this device, not yet in Drive') : t('Google Drive সংযোগ বিচ্ছিন্ন', 'Google Drive disconnected');
-      btn.hidden = false;
-      btn.textContent = t('Drive-এ সেভ করুন', 'Save to Drive');
+      el.classList.add('warn');
+      el.textContent = meta.pendingSync ? t('এই ডিভাইসে সেভ হয়েছে, Google Drive-এ এখনো নয়', 'Saved on this device, not yet in Google Drive') : t('Google Drive সংযোগ বিচ্ছিন্ন', 'Google Drive disconnected');
+      btn.textContent = meta.pendingSync ? t('Drive-এ সেভ করুন', 'Save to Drive') : t('Drive সংযোগ দিন', 'Connect Drive');
       btn.onclick = reconnect;
       break;
     case 'error':
       el.classList.add('bad');
       el.textContent = t('Drive-এ সেভ হয়নি: ', 'Not saved to Drive: ') + detail;
-      btn.hidden = false;
       btn.textContent = t('আবার চেষ্টা', 'Retry');
-      btn.onclick = () => (drive.hasToken() ? pushNow() : reconnect());
+      btn.onclick = () => (dirty ? saveNow() : drive.hasToken() ? pushNow() : reconnect());
       break;
-    default:
-      el.textContent = meta.lastSyncedAt ? t('সর্বশেষ সিঙ্ক: ', 'Last synced: ') + timeAgo(meta.lastSyncedAt) : '';
+    default: // idle: nothing changed since the last save
+      el.textContent = meta.lastSyncedAt ? t('✓ সব সেভ করা আছে', '✓ Everything is saved') + when : t('তথ্য লিখে “সেভ করুন” চাপুন', 'Fill in your details, then press Save');
+      btn.disabled = true;
   }
   updateAccountMenu();
 }
@@ -221,6 +258,8 @@ async function onSignIn() {
       meta.lastSyncedAt = new Date().toISOString();
     }
     await store.set('profile', profile);
+    await store.del('draft');
+    dirty = false;
     await saveMeta();
     showApp();
     setStatus(remote ? 'synced' : 'idle');
@@ -251,12 +290,12 @@ function toggleMenu(open) {
 
 async function onSignOut() {
   if (!confirm(t('সাইন আউট করলে এই ডিভাইস থেকে আপনার প্রোফাইল, ছবি ও স্বাক্ষর মুছে যাবে (Google Drive-এ থেকে যাবে)। চালিয়ে যাবেন?', 'Signing out removes your profile, photo and signature from this device (they stay in your Google Drive). Continue?'))) return;
-  if (meta.pendingSync && !confirm(t('কিছু পরিবর্তন এখনো Drive-এ সেভ হয়নি — সেগুলো হারিয়ে যাবে। তবুও সাইন আউট করবেন?', 'Some changes are not in Drive yet and will be lost. Sign out anyway?'))) return;
-  clearTimeout(localTimer);
-  clearTimeout(pushTimer);
+  if ((dirty || meta.pendingSync) && !confirm(t('কিছু পরিবর্তন এখনো Drive-এ সেভ হয়নি — সেগুলো হারিয়ে যাবে। তবুও সাইন আউট করবেন?', 'Some changes are not in Drive yet and will be lost. Sign out anyway?'))) return;
+  clearTimeout(draftTimer);
   drive.signOut();
   await store.clear();
   profile = emptyProfile();
+  dirty = false;
   meta = {};
   touched.clear();
   toggleMenu(false);
@@ -268,6 +307,16 @@ async function renderBanners() {
   const box = $('#banners');
   box.innerHTML = '';
   if (drive.MOCK) box.insertAdjacentHTML('beforeend', `<div class="banner info"><p class="small"><b>Test mode</b> — ${t('নকল Drive (শুধু এই ব্রাউজারে)।', 'fake Drive kept in this browser.')}</p></div>`);
+  if (dirty && draftRestored) {
+    const d = document.createElement('div');
+    d.className = 'banner';
+    d.innerHTML = `<p><b>${t('আগের সেভ না করা পরিবর্তনগুলো ফিরিয়ে আনা হয়েছে', 'Your unsaved changes from last time are back')}</b></p>
+      <p class="small">${t('রাখতে চাইলে “সেভ করুন” চাপুন, না চাইলে বাদ দিন।', 'Press Save to keep them, or discard them.')}</p>
+      <div class="row"><button class="btn primary" type="button" data-act="save">${t('সেভ করুন', 'Save')}</button><button class="btn secondary" type="button" data-act="drop">${t('বাদ দিন', 'Discard')}</button></div>`;
+    d.querySelector('[data-act=save]').onclick = saveNow;
+    d.querySelector('[data-act=drop]').onclick = discardDraft;
+    box.appendChild(d);
+  }
   const imp = await store.get('pendingImport');
   if (!imp) return;
   let host = '';
@@ -279,7 +328,7 @@ async function renderBanners() {
   const div = document.createElement('div');
   div.className = 'banner';
   div.innerHTML = `<p><b>${t('টেলিটক ফর্ম থেকে সেভ করা তথ্য পাওয়া গেছে', 'Data saved from a Teletalk form')}</b>${host ? ` <span class="small muted">(${esc(host)})</span>` : ''}</p>
-    <p class="small">${t('প্রোফাইলে যোগ করলে খালি ঘরগুলো পূরণ হবে; আগের তথ্যের সাথে না মিললে ফর্মের তথ্য বসবে। পরে সব ঘর দেখে নিন।', 'Adding it fills your profile; where values differ, the form’s values are used. Check every section afterwards.')}</p>
+    <p class="small">${t('প্রোফাইলে যোগ করলে খালি ঘরগুলো পূরণ হবে; আগের তথ্যের সাথে না মিললে ফর্মের তথ্য বসবে। পরে সব ঘর দেখে “সেভ করুন” চাপুন।', 'Adding it fills your profile; where values differ, the form’s values are used. Check every section, then press Save.')}</p>
     <div class="row"><button class="btn primary" type="button" data-act="apply">${t('প্রোফাইলে যোগ করুন', 'Add to my profile')}</button><button class="btn secondary" type="button" data-act="discard">${t('বাদ দিন', 'Discard')}</button></div>`;
   div.querySelector('[data-act=apply]').onclick = () => applyImport(imp);
   div.querySelector('[data-act=discard]').onclick = async () => {
@@ -616,12 +665,12 @@ async function openEditor(card, kind, file) {
       const blob = await encodeJpeg(out, spec);
       const data = await blobToBase64(blob);
       profile[kind] = kind === 'photo' ? { data, bytes: blob.size, takenAt: todayStr() } : { data, bytes: blob.size };
-      changed();
       renderMedia();
       const m = $('.m-msg', $('#media-' + kind));
       m.hidden = false;
       m.className = 'msg ok m-msg';
       m.textContent = kind === 'photo' ? t('ছবি সেভ হয়েছে। আজ তোলা না হলে নিচে তারিখ ঠিক করুন।', 'Photo saved. If it was not taken today, fix the date.') : t('স্বাক্ষর সেভ হয়েছে।', 'Signature saved.');
+      await saveNow(); // "Save this" saves for real, like the Save button
     } catch (e) {
       btn.disabled = false;
       msg.hidden = false;
@@ -721,7 +770,21 @@ function wire() {
     alert(t('এটি চাপবেন না — মাউস দিয়ে টেনে বুকমার্ক বারে রাখুন।', 'Don’t click it — drag it onto your bookmarks bar.'));
   };
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && meta.account) flushLocal();
+    if (document.hidden && meta.account) keepDraft();
+  });
+  // Leaving with unsaved edits: the browser asks first (the draft is kept either way).
+  window.addEventListener('beforeunload', (e) => {
+    if (!dirty || !meta.account) return;
+    keepDraft();
+    e.preventDefault();
+    e.returnValue = '';
+  });
+  // Ctrl+S / ⌘+S on a computer.
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && meta.account && !$('#app').hidden) {
+      e.preventDefault();
+      if (dirty) saveNow();
+    }
   });
 }
 
@@ -732,6 +795,12 @@ async function boot() {
   meta = (await store.get('meta')) || {};
   const cached = await store.get('profile');
   if (cached) profile = normalize(cached);
+  const draft = await store.get('draft');
+  if (draft && meta.account) {
+    profile = normalize(draft);
+    dirty = true;
+    draftRestored = true;
+  }
   if (!meta.account) return showGate();
   showApp();
   try {
@@ -740,7 +809,7 @@ async function boot() {
     selectTab('profile');
   }
   if (drive.hasToken()) pull();
-  else setStatus(meta.pendingSync ? 'needSignIn' : 'idle');
+  else setStatus(dirty ? 'dirty' : meta.pendingSync ? 'needSignIn' : 'idle');
 }
 
 boot();

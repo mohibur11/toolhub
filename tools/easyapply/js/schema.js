@@ -3,7 +3,7 @@
 // profile passes the real form's checks.
 
 import { LOOKUPS } from './lookups.js?v=1';
-import { groupTypes, gpaMax, OTHER_CODE, hasLevel } from './fields.js?v=1';
+import { groupTypes, gpaMax, OTHER_CODE, hasLevel } from './fields.js?v=2';
 
 const E = (en, bn) => ({ en, bn });
 const L = (en, bn) => ({ en, bn });
@@ -191,7 +191,6 @@ export const JOB_FIELDS = [
   { name: 'job_start_date', type: 'date', label: L('Start date', 'যোগদানের তারিখ'), check: dateCheck },
   { name: 'currently_working', type: 'check', label: L('I still work here', 'এখনো এখানে কর্মরত') },
   { name: 'job_end_date', type: 'date', label: L('End date', 'শেষ তারিখ'), show: (j) => j.currently_working !== '1', check: (v, j) => dateCheck(v) || (j.job_start_date && v < j.job_start_date ? E('Ends before it starts.', 'শুরুর আগের তারিখ।') : null) },
-  { name: 'last_salary', type: 'digits', max: 9, opt: true, label: L('Last drawn salary (Tk)', 'সর্বশেষ বেতন (টাকা)'), check: (v) => (!/^\d+$/.test(v) ? E('Digits only.', 'শুধু সংখ্যা।') : null) },
   { name: 'job_description', type: 'textarea', max: 300, label: L('Job description', 'কাজের বিবরণ'), check: englishText },
 ];
 
