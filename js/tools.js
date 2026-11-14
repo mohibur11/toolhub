@@ -31,7 +31,7 @@ export const TOOLS = [
     id: "easyapply",
     icon: "📝",
     name: "EasyApply",
-    description: "Teletalk govt job forms: enter your details, photo and signature once, then fill any application with one tap — on your phone. Data stays in your own Google Drive.",
+    description: "Teletalk govt job forms: enter your details, photo and signature once, then fill any application in one click — on your computer, tablet or phone. Data stays in your own Google Drive.",
     url: "tools/easyapply/",
   },
 ];

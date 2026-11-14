@@ -67,7 +67,7 @@ if (!window.opener) {
         say('EasyApply', 'তথ্য পাঠানো হয়েছে। টেলিটকের ট্যাবে ফিরে যাচ্ছি…', 'Profile sent. Going back to Teletalk…');
         finish();
       } else {
-        say('EasyApply', 'এই ফোনে কোনো প্রোফাইল নেই। EasyApply খুলে Google দিয়ে সাইন ইন করুন, তারপর আবার চেষ্টা করুন।', 'No profile on this device. Open EasyApply and sign in with Google, then try again.', { bad: true, openApp: true });
+        say('EasyApply', 'এই ব্রাউজারে কোনো প্রোফাইল নেই। এই ব্রাউজারেই EasyApply খুলে Google দিয়ে সাইন ইন করুন, তারপর আবার চেষ্টা করুন।', 'No profile in this browser. Open EasyApply in this same browser and sign in with Google, then try again.', { bad: true, openApp: true });
       }
     } else if (msg.type === 'easyapply:save') {
       answered = true;

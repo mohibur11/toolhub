@@ -5,7 +5,7 @@ import { store } from './store.js?v=1';
 import * as drive from './drive.js?v=1';
 import { SECTIONS, JOB_FIELDS, isShown, optionsOf, validateProfile, optionText, OPTION_BN } from './schema.js?v=1';
 import { emptyProfile, PROFILE_VERSION } from './fields.js?v=1';
-import { SPECS, loadImage, Cropper, cleanSignature, colourfulness, encodeJpeg, blobToBase64 } from './image.js?v=1';
+import { SPECS, loadImage, Cropper, cleanSignature, colourfulness, encodeJpeg, blobToBase64 } from './image.js?v=2';
 import { daysSince, bnNum } from './eligibility.js?v=1';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -158,13 +158,13 @@ function setStatus(state, detail = '') {
       el.textContent = t('✓ Google Drive-এ সেভ হয়েছে', '✓ Saved to Google Drive');
       break;
     case 'pending':
-      el.textContent = t('ফোনে সেভ হয়েছে · Drive-এ পাঠানো হচ্ছে…', 'Saved on this device · sending to Drive…');
+      el.textContent = t('এই ডিভাইসে সেভ হয়েছে · Drive-এ পাঠানো হচ্ছে…', 'Saved on this device · sending to Drive…');
       break;
     case 'syncing':
       el.textContent = t('Google Drive-এর সাথে মেলানো হচ্ছে…', 'Syncing with Google Drive…');
       break;
     case 'needSignIn':
-      el.textContent = meta.pendingSync ? t('ফোনে সেভ আছে, Drive-এ এখনো নয়', 'Saved on this device, not yet in Drive') : t('Google Drive সংযোগ বিচ্ছিন্ন', 'Google Drive disconnected');
+      el.textContent = meta.pendingSync ? t('এই ডিভাইসে সেভ আছে, Drive-এ এখনো নয়', 'Saved on this device, not yet in Drive') : t('Google Drive সংযোগ বিচ্ছিন্ন', 'Google Drive disconnected');
       btn.hidden = false;
       btn.textContent = t('Drive-এ সেভ করুন', 'Save to Drive');
       btn.onclick = reconnect;
@@ -622,11 +622,14 @@ async function openEditor(card, kind, file) {
       m.hidden = false;
       m.className = 'msg ok m-msg';
       m.textContent = kind === 'photo' ? t('ছবি সেভ হয়েছে। আজ তোলা না হলে নিচে তারিখ ঠিক করুন।', 'Photo saved. If it was not taken today, fix the date.') : t('স্বাক্ষর সেভ হয়েছে।', 'Signature saved.');
-    } catch {
+    } catch (e) {
       btn.disabled = false;
       msg.hidden = false;
       msg.className = 'msg bad m-msg';
-      msg.textContent = t('টেলিটকের মাপে আনা যায়নি। অন্য একটি ছবি চেষ্টা করুন।', 'Could not fit Teletalk’s size limits. Try another picture.');
+      msg.textContent =
+        e?.message === 'no-jpeg'
+          ? t('এই ব্রাউজার .jpg ছবি বানাতে পারে না। Chrome বা Safari-তে EasyApply খুলুন, বা ব্রাউজার আপডেট করুন।', 'This browser can’t make .jpg pictures. Open EasyApply in Chrome or Safari, or update your browser.')
+          : t('টেলিটকের মাপে আনা যায়নি। অন্য একটি ছবি চেষ্টা করুন।', 'Could not fit Teletalk’s size limits. Try another picture.');
     }
   };
 }
@@ -637,10 +640,22 @@ function bookmarkletCode() {
   return `javascript:(function(){var s=document.createElement('script');s.type='module';s.src='${fill}?v='+Date.now();document.head.appendChild(s);})();`;
 }
 
+/** Which bookmark how-to fits this browser. iPadOS Safari says "Macintosh", so check for touch too. */
+function deviceKind() {
+  const ua = navigator.userAgent;
+  if (/Android/i.test(ua)) return 'android';
+  if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
+  return 'desktop';
+}
+
 function renderSetup() {
   const code = bookmarkletCode();
   $('#bmCode').value = code;
   $('#bmLink').href = code;
+  // Open this device's how-to and point at its way of running the bookmark; the others stay one tap away.
+  const kind = deviceKind();
+  for (const d of $$('#tab-setup details.how')) if (d.dataset.os === kind) d.open = true;
+  for (const li of $$('#tab-setup .run-ways li')) li.classList.toggle('mine', li.dataset.os === kind);
 }
 
 // ---------------------------------------------------------------- wiring

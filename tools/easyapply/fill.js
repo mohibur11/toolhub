@@ -52,7 +52,7 @@ function askBridge(message) {
 }
 
 function bridgeErrorText(err) {
-  if (err.message === 'popup') return t('ব্রাউজার নতুন ট্যাব খুলতে দেয়নি। এই সাইটের জন্য পপ-আপ চালু করে আবার চাপুন।', 'The browser blocked the new tab. Allow pop-ups for this site and tap again.');
+  if (err.message === 'popup') return t('ব্রাউজার নতুন ট্যাব খুলতে দেয়নি। এই সাইটের জন্য পপ-আপ চালু করে আবার চাপুন।', 'The browser blocked the new tab. Allow pop-ups for this site and try again.');
   return t('EasyApply থেকে সাড়া পাওয়া যায়নি। আবার চেষ্টা করুন।', 'No answer from EasyApply. Please try again.');
 }
 
@@ -425,7 +425,12 @@ function placeHost(host) {
   }
   const coarse = window.matchMedia('(pointer: coarse)').matches;
   // "Natural" width = the screen width in normal CSS pixels (what a mobile-friendly page would have).
-  const natural = Math.max(300, Math.round(coarse ? Math.min(window.screen.width || vv.width, 1200) : vv.width * vv.scale));
+  // iPhone/iPad keep screen.width at the portrait width even when turned sideways, so pick the long or
+  // short side from the page's own orientation (Android already swaps them; max/min is right for both).
+  const landscape = window.matchMedia('(orientation: landscape)').matches;
+  const sw = window.screen.width, sh = window.screen.height;
+  const screenW = sw && sh ? (landscape ? Math.max(sw, sh) : Math.min(sw, sh)) : vv.width;
+  const natural = Math.max(300, Math.round(coarse ? Math.min(screenW, 1200) : vv.width * vv.scale));
   const k = vv.width / natural;
   Object.assign(host.style, { left: vv.offsetLeft + 'px', top: vv.offsetTop + 'px', width: natural + 'px', height: vv.height / k + 'px', transform: `scale(${k})` });
   host.classList.toggle('narrow', natural <= 520);
@@ -579,7 +584,7 @@ function createPanel() {
           state.view = 'done';
           state.cursor = -1;
         } catch (err) {
-          state.message = err.message === 'empty' ? { kind: 'bad', text: `${t('এই ফোনে EasyApply প্রোফাইল নেই।', 'No EasyApply profile on this device.')} <a class="link" href="${APP_URL}" target="_blank" rel="noopener">${t('EasyApply খুলুন', 'Open EasyApply')}</a>` } : { kind: 'bad', text: bridgeErrorText(err) };
+          state.message = err.message === 'empty' ? { kind: 'bad', text: `${t('এই ব্রাউজারে EasyApply প্রোফাইল নেই। এই ব্রাউজারেই EasyApply খুলে একবার সাইন ইন করুন।', 'No EasyApply profile in this browser. Open EasyApply in this same browser and sign in once.')} <a class="link" href="${APP_URL}" target="_blank" rel="noopener">${t('EasyApply খুলুন', 'Open EasyApply')}</a>` } : { kind: 'bad', text: bridgeErrorText(err) };
         }
         render();
       };
@@ -621,9 +626,15 @@ function createPanel() {
           const p = state.profile || (await getProfile());
           state.elig = photoChecks(p);
           const done = [];
-          const failed = [];
-          if (uploads.photo) (p.photo?.data && attachFile(uploads.photo, p.photo.data, 'photo.jpg') ? done : failed).push(t('ছবি', 'photo'));
-          if (uploads.sign) (p.signature?.data && attachFile(uploads.sign, p.signature.data, 'signature.jpg') ? done : failed).push(t('স্বাক্ষর', 'signature'));
+          const failed = []; // saved in EasyApply, but this browser wouldn't take the file
+          const missing = []; // not saved in EasyApply yet
+          const tryAttach = (input, media, name, label) => {
+            if (!input) return;
+            if (!media?.data) missing.push(label);
+            else (attachFile(input, media.data, name) ? done : failed).push(label);
+          };
+          tryAttach(uploads.photo, p.photo, 'photo.jpg', t('ছবি', 'photo'));
+          tryAttach(uploads.sign, p.signature, 'signature.jpg', t('স্বাক্ষর', 'signature'));
           if (uploads.photo) mark(uploads.photo, uploads.photo.files?.length ? 'ok' : 'need');
           if (uploads.sign) mark(uploads.sign, uploads.sign.files?.length ? 'ok' : 'need');
           const agree = document.getElementById('agree');
@@ -634,11 +645,13 @@ function createPanel() {
             const links = [p.photo?.data ? `<a download="photo.jpg" href="data:image/jpeg;base64,${p.photo.data}">photo.jpg</a>` : '', p.signature?.data ? `<a download="signature.jpg" href="data:image/jpeg;base64,${p.signature.data}">signature.jpg</a>` : ''].join('');
             state.downloads = `<h4>${t('নিজে বেছে নিতে চাইলে ফাইল নামান', 'Or download and pick them yourself')}</h4><div class="dl">${links}</div>`;
           }
-          state.message = failed.length
-            ? { kind: 'bad', text: `${t('যুক্ত করা যায়নি', 'Could not attach')}: ${failed.join(', ')}. ${t('EasyApply-তে ছবি/স্বাক্ষর সেভ আছে কিনা দেখুন।', 'Check that EasyApply has your photo/signature saved.')}` }
-            : { kind: 'ok', text: `${t('যুক্ত হয়েছে', 'Attached')}: ${done.join(', ')}. ${t('প্রিভিউ দেখে নিন।', 'Check the previews.')}` };
+          const parts = [];
+          if (done.length) parts.push(`${t('যুক্ত হয়েছে', 'Attached')}: ${done.join(', ')}. ${t('প্রিভিউ দেখে নিন।', 'Check the previews.')}`);
+          if (failed.length) parts.push(`${t('এই ব্রাউজার নিজে থেকে ফাইল বসাতে দেয়নি', 'This browser would not let EasyApply put in')}: ${failed.join(', ')}. ${t('নিচ থেকে ফাইল নামিয়ে ফর্মের ঘরে নিজে বেছে নিন।', 'Download the file below and choose it in the form yourself.')}`);
+          if (missing.length) parts.push(`${t('EasyApply-তে সেভ নেই', 'Not saved in EasyApply yet')}: ${missing.join(', ')}. ${t('EasyApply খুলে “ছবি ও স্বাক্ষর” ট্যাবে যোগ করুন।', 'Add it in EasyApply’s “Photo & signature” tab.')}`);
+          state.message = { kind: failed.length || missing.length ? 'bad' : 'ok', text: parts.join(' ') };
         } catch (err) {
-          state.message = err.message === 'empty' ? { kind: 'bad', text: `${t('এই ফোনে EasyApply প্রোফাইল নেই।', 'No EasyApply profile on this device.')} <a class="link" href="${APP_URL}" target="_blank" rel="noopener">${t('EasyApply খুলুন', 'Open EasyApply')}</a>` } : { kind: 'bad', text: bridgeErrorText(err) };
+          state.message = err.message === 'empty' ? { kind: 'bad', text: `${t('এই ব্রাউজারে EasyApply প্রোফাইল নেই। এই ব্রাউজারেই EasyApply খুলে একবার সাইন ইন করুন।', 'No EasyApply profile in this browser. Open EasyApply in this same browser and sign in once.')} <a class="link" href="${APP_URL}" target="_blank" rel="noopener">${t('EasyApply খুলুন', 'Open EasyApply')}</a>` } : { kind: 'bad', text: bridgeErrorText(err) };
         }
         render();
       };

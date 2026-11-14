@@ -198,7 +198,12 @@ export function colourfulness(canvas) {
   return n ? sum / n : 0;
 }
 
-const toBlob = (canvas, q) => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', q));
+// A browser that can't encode JPEG quietly returns a PNG instead (seen in WebKit's Windows build). Teletalk
+// needs a real JPEG — a PNG named .jpg passes its filename check but is not what it asks for — so refuse.
+const toBlob = (canvas, q) =>
+  new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b && b.type === 'image/jpeg' ? resolve(b) : reject(new Error('no-jpeg'))), 'image/jpeg', q),
+  );
 
 function addNoise(canvas, amp) {
   const ctx = canvas.getContext('2d');
